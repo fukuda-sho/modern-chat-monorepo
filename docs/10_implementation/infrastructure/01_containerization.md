@@ -128,7 +128,7 @@ services:
     ports:
       - "3001:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://backend:3000
+      API_URL: http://backend:3000
     depends_on:
       - backend
 ```

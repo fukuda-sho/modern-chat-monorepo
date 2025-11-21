@@ -1,17 +1,28 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { LoginForm } from './LoginForm';
-import api from '@/lib/api';
+import { useEnv } from '@/components/providers/EnvProvider';
 import { useRouter } from 'next/navigation';
 
-// Mock api and useRouter
-jest.mock('@/lib/api');
+// Mock env provider and useRouter
+jest.mock('@/components/providers/EnvProvider');
 jest.mock('next/navigation');
+
+const mockUseEnv = useEnv as jest.MockedFunction<typeof useEnv>;
 
 describe('LoginForm', () => {
   const mockPush = jest.fn();
+  const mockApiClient = {
+    post: jest.fn(),
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockApiClient.post.mockReset();
+    mockUseEnv.mockReturnValue({
+      apiUrl: 'http://localhost:3000',
+      socketUrl: 'http://localhost:3000',
+      apiClient: mockApiClient,
+    });
     (useRouter as jest.Mock).mockReturnValue({
       push: mockPush,
     });
@@ -57,11 +68,11 @@ describe('LoginForm', () => {
       await screen.findByText(/Password must be at least 6 characters/i)
     ).toBeInTheDocument();
 
-    expect(api.post).not.toHaveBeenCalled();
+    expect(mockApiClient.post).not.toHaveBeenCalled();
   });
 
   it('calls api.post and redirects on successful login', async () => {
-    (api.post as jest.Mock).mockResolvedValue({
+    mockApiClient.post.mockResolvedValue({
       data: { access_token: 'fake-token' },
     });
 
@@ -76,7 +87,7 @@ describe('LoginForm', () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/auth/login', {
+      expect(mockApiClient.post).toHaveBeenCalledWith('/auth/login', {
         email: 'test@example.com',
         password: 'password123',
       });

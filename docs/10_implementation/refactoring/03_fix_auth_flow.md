@@ -83,50 +83,33 @@ app.enableCors({
 import { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001';
+import { useEnv } from '@/components/providers/EnvProvider';
 
 export function useSocket() {
+  const { socketUrl } = useEnv();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // トークンを取得
     const token = localStorage.getItem('accessToken');
+    if (!token) return;
 
-    if (!token) {
-      // トークンがない場合は接続しない
-      return;
-    }
-
-    // Socket.IOクライアントの初期化
-    const socketInstance = io(SOCKET_URL, {
+    const socketInstance = io(socketUrl, {
       auth: {
-        token: `Bearer ${token}`,  // ✅ 重要: Bearer形式でトークンを送信
+        token: `Bearer ${token}`,
       },
       autoConnect: true,
     });
 
-    socketInstance.on('connect', () => {
-      console.log('Socket connected:', socketInstance.id);
-      setIsConnected(true);
-    });
-
-    socketInstance.on('disconnect', () => {
-      console.log('Socket disconnected');
-      setIsConnected(false);
-    });
-
+    socketInstance.on('connect', () => setIsConnected(true));
+    socketInstance.on('disconnect', () => setIsConnected(false));
     socketInstance.on('error', (error) => {
       console.error('Socket error:', error);
     });
 
     setSocket(socketInstance);
-
-    // クリーンアップ
-    return () => {
-      socketInstance.disconnect();
-    };
-  }, []); // 依存配列が空なので、マウント時のみ実行
+    return () => socketInstance.disconnect();
+  }, [socketUrl]);
 
   return { socket, isConnected };
 }

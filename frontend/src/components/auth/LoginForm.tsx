@@ -24,7 +24,7 @@ import {
   FormMessage,
 } from "@/components/ui/Form";
 import { Input } from "@/components/ui/Input";
-import api from "@/lib/api";
+import { useEnv } from "@/components/providers/EnvProvider";
 import type { LoginRequest, LoginResponse } from "@/types/api";
 
 const formSchema = z.object({
@@ -34,6 +34,7 @@ const formSchema = z.object({
 
 export function LoginForm() {
   const router = useRouter();
+  const { apiClient } = useEnv();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -44,7 +45,10 @@ export function LoginForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      const res = await api.post<LoginResponse>("/auth/login", values as LoginRequest);
+      const res = await apiClient.post<LoginResponse>(
+        "/auth/login",
+        values as LoginRequest,
+      );
       localStorage.setItem("accessToken", res.data.access_token);
       toast.success("Login successful");
       router.push("/");

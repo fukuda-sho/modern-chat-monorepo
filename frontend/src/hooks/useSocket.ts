@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001';
+import { useEnv } from '@/components/providers/EnvProvider';
 
 /**
  * WebSocket接続とリアルタイム通信を管理するカスタムフック
@@ -40,6 +40,7 @@ const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http
  * @returns Socket.IOインスタンスと接続状態
  */
 export function useSocket() {
+  const { socketUrl } = useEnv();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -53,10 +54,10 @@ export function useSocket() {
       return;
     }
 
-    console.log('Initializing socket connection to:', SOCKET_URL);
+    console.log('Initializing socket connection to:', socketUrl);
 
     // Socket.IOクライアントの初期化
-    const socketInstance = io(SOCKET_URL, {
+    const socketInstance = io(socketUrl, {
       auth: {
         token: `Bearer ${token}`,
       },
@@ -89,7 +90,7 @@ export function useSocket() {
       console.log('Cleaning up socket connection');
       socketInstance.disconnect();
     };
-  }, []); // 空の依存配列: マウント時のみ実行
+  }, [socketUrl]);
 
   return { socket, isConnected };
 }

@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/Input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/Card";
 import Link from "next/link";
-import api from "@/lib/api";
+import { useEnv } from "@/components/providers/EnvProvider";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { SignupRequest, UserResponse } from "@/types/api";
@@ -28,6 +28,7 @@ const formSchema = z.object({
 
 export default function SignupPage() {
   const router = useRouter();
+  const { apiClient } = useEnv();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -39,7 +40,7 @@ export default function SignupPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      await api.post<UserResponse>("/auth/signup", values as SignupRequest);
+      await apiClient.post<UserResponse>("/auth/signup", values as SignupRequest);
       toast.success("Signup successful. Please login.");
       router.push("/auth/login");
     } catch {
@@ -108,4 +109,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
