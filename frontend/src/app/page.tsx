@@ -13,7 +13,8 @@ export default function Home() {
     if (!token) {
       router.push("/auth/login");
     } else {
-      setIsAuthenticated(true);
+      // Avoid synchronous setState warning
+      setTimeout(() => setIsAuthenticated(true), 0);
     }
   }, [router]);
 
