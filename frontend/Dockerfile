@@ -18,6 +18,10 @@ RUN yarn install --immutable
 # Copy source code
 COPY . .
 
+# Build arguments for Next.js public environment variables
+ARG NEXT_PUBLIC_API_URL=http://localhost:3000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 # Build the application
 # Next.js collects anonymous telemetry data, disable it
 ENV NEXT_TELEMETRY_DISABLED=1
