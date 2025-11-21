@@ -3,10 +3,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { LogOut, Plus } from "lucide-react";
 import Link from "next/link";
+import type { ChatRoom } from "@/types/entity";
 
 export default function Sidebar() {
   // Mock data
-  const rooms = [
+  const rooms: Pick<ChatRoom, 'id' | 'name'>[] = [
     { id: 1, name: "General" },
     { id: 2, name: "Random" },
     { id: 3, name: "Tech Talk" },

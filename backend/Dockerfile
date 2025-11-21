@@ -1,6 +1,12 @@
 # Stage 1: Builder
 FROM node:20-alpine AS builder
 
+# Install OpenSSL compatibility library for Prisma
+RUN apk add --no-cache openssl
+
+# Enable Corepack for Yarn 4
+RUN corepack enable
+
 # Set working directory
 WORKDIR /app
 
@@ -10,7 +16,7 @@ COPY .yarnrc.yml ./
 COPY .yarn ./.yarn
 
 # Install dependencies with frozen lockfile
-RUN yarn install --frozen-lockfile
+RUN yarn install --immutable
 
 # Copy source code
 COPY . .
@@ -24,20 +30,16 @@ RUN yarn build
 # Stage 2: Runner
 FROM node:20-alpine
 
+# Install OpenSSL compatibility library for Prisma
+RUN apk add --no-cache openssl
+
 # Set working directory
 WORKDIR /app
 
-# Copy package files for production
-COPY package.json yarn.lock ./
-COPY .yarnrc.yml ./
-COPY .yarn ./.yarn
-
-# Install production dependencies only
-RUN yarn install --frozen-lockfile --production
-
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 
 # Expose the application port

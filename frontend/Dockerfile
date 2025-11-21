@@ -1,14 +1,19 @@
 # Stage 1: Builder
 FROM node:20-alpine AS builder
 
+# Enable Corepack for Yarn 4
+RUN corepack enable
+
 # Set working directory
 WORKDIR /app
 
 # Copy package files
 COPY package.json yarn.lock ./
+COPY .yarnrc.yml ./
+COPY .yarn ./.yarn
 
 # Install dependencies with frozen lockfile
-RUN yarn install --frozen-lockfile
+RUN yarn install --immutable
 
 # Copy source code
 COPY . .

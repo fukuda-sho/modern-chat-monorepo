@@ -18,6 +18,7 @@ import Link from "next/link";
 import api from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import type { SignupRequest, UserResponse } from "@/types/api";
 
 const formSchema = z.object({
   username: z.string().min(2),
@@ -38,7 +39,7 @@ export default function SignupPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      await api.post("/auth/signup", values);
+      await api.post<UserResponse>("/auth/signup", values as SignupRequest);
       toast.success("Signup successful. Please login.");
       router.push("/auth/login");
     } catch {

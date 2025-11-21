@@ -3,8 +3,7 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { LoginDto } from './dto/login.dto';
-import { SignupDto } from './dto/signup.dto';
+import { LoginDto, SignupDto, LoginResponseDto, UserResponseDto } from './dto';
 
 @Injectable()
 export class AuthService {
@@ -22,7 +21,7 @@ export class AuthService {
     return null;
   }
 
-  async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto): Promise<LoginResponseDto> {
     const user = await this.validateUser(loginDto.email, loginDto.password);
     if (!user) {
       throw new UnauthorizedException();
@@ -33,7 +32,7 @@ export class AuthService {
     };
   }
 
-  async signup(signupDto: SignupDto) {
+  async signup(signupDto: SignupDto): Promise<UserResponseDto> {
     const user = await this.usersService.create(signupDto);
     const { password: _password, ...result } = user;
     return result;

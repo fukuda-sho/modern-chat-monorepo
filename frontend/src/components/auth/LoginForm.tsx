@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
+import type { LoginRequest, LoginResponse } from "@/types/api";
 
 const formSchema = z.object({
   email: z.string().email(),
@@ -43,7 +44,7 @@ export function LoginForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      const res = await api.post("/auth/login", values);
+      const res = await api.post<LoginResponse>("/auth/login", values as LoginRequest);
       localStorage.setItem("accessToken", res.data.access_token);
       toast.success("Login successful");
       router.push("/");
