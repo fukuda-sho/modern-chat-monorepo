@@ -1,6 +1,6 @@
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/ScrollArea";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/Avatar";
+import { Button } from "@/components/ui/Button";
 import { LogOut, Plus } from "lucide-react";
 import Link from "next/link";
 import type { ChatRoom } from "@/types/entity";
