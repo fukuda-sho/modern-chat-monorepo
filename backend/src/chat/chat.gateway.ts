@@ -14,17 +14,34 @@ import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { WsJwtGuard } from './guards/ws-jwt.guard';
 
+/**
+ * JWTトークンから抽出されたユーザー情報
+ */
 interface ChatUser {
+  /** ユーザー名 */
   username: string;
+  /** ユーザーID（JWTのsubjectクレーム） */
   sub: number;
 }
 
+/**
+ * 認証情報を含むWebSocketクライアント
+ */
 interface SocketWithAuth extends Socket {
   data: {
+    /** JWT認証されたユーザー情報 */
     user?: ChatUser;
   };
 }
 
+/**
+ * リアルタイムチャット機能を提供するWebSocketゲートウェイ
+ *
+ * クライアントとの双方向通信を管理し、チャットルームへの参加、メッセージ送受信、
+ * ルーム離脱などの機能を提供します。すべてのイベントハンドラはJWT認証が必要です。
+ *
+ * CORS設定により、フロントエンドからのWebSocket接続を許可します。
+ */
 @WebSocketGateway({
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -42,6 +59,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private jwtService: JwtService,
   ) {}
 
+  /**
+   * クライアントがWebSocketに接続した際の処理
+   *
+   * ハンドシェイク時に送信されたJWTトークンを検証し、
+   * 有効な場合はユーザー情報をクライアントのデータに格納します。
+   * トークンが無効または存在しない場合は接続を切断します。
+   *
+   * @param client 接続してきたWebSocketクライアント
+   */
   handleConnection(client: SocketWithAuth) {
     try {
       const token = this.extractToken(client);
@@ -62,10 +88,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /**
+   * クライアントがWebSocketから切断された際の処理
+   *
+   * 切断ログを記録します。
+   * クライアントが参加していたルームからは自動的に退出されます。
+   *
+   * @param client 切断されたWebSocketクライアント
+   */
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
+  /**
+   * チャットルームへの参加リクエストを処理します
+   *
+   * クライアントを指定されたルームに参加させ、ルーム内の他のユーザーと
+   * メッセージをやり取りできるようにします。
+   * 参加完了後、クライアントに'joinedRoom'イベントを送信します。
+   *
+   * @param client ルームに参加するWebSocketクライアント（認証済み）
+   * @param payload ルームID を含むペイロード
+   */
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('joinRoom')
   handleJoinRoom(
@@ -78,6 +122,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`User ${client.data.user?.username} joined ${roomName}`);
   }
 
+  /**
+   * チャットルームからの退出リクエストを処理します
+   *
+   * クライアントを指定されたルームから退出させます。
+   * 退出後、ルーム内のメッセージは受信されなくなります。
+   * 退出完了後、クライアントに'leftRoom'イベントを送信します。
+   *
+   * @param client ルームから退出するWebSocketクライアント（認証済み）
+   * @param payload ルームID を含むペイロード
+   */
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('leaveRoom')
   handleLeaveRoom(
@@ -90,6 +144,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`User ${client.data.user?.username} left ${roomName}`);
   }
 
+  /**
+   * クライアントからのメッセージ送信リクエストを処理します
+   *
+   * 送信されたメッセージをデータベースに保存し、
+   * 同じルームに参加している全てのクライアントに'newMessage'イベントで
+   * メッセージをブロードキャストします。
+   *
+   * 送信者本人にもメッセージが配信されます。
+   * メッセージの保存に失敗した場合は、送信者にエラーイベントを返します。
+   *
+   * @param client メッセージを送信するWebSocketクライアント（認証済み）
+   * @param payload ルームIDとメッセージ内容を含むペイロード
+   */
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
@@ -117,6 +184,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /**
+   * WebSocketハンドシェイクからJWTトークンを抽出します
+   *
+   * 以下の順序でトークンを検索します：
+   * 1. handshake.auth.token（Socket.IOのauth設定）
+   * 2. handshake.headers.authorization（HTTPヘッダー）
+   *
+   * Bearer形式のトークンから'Bearer'プレフィックスを除去して返します。
+   *
+   * @param client WebSocketクライアント
+   * @returns 抽出されたJWTトークン（存在しない場合はundefined）
+   */
   private extractToken(client: Socket): string | undefined {
     const auth = client.handshake.auth as { token?: string } | undefined;
     if (auth?.token) {
