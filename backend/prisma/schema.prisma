@@ -1,0 +1,50 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/// ユーザー情報を管理するモデル
+model User {
+  id        Int       @id @default(autoincrement())
+  username  String    @unique @db.VarChar(255)
+  email     String    @unique @db.VarChar(255)
+  password  String    @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  messages  Message[]
+
+  @@map("users")
+}
+
+/// チャットルーム情報を管理するモデル
+model ChatRoom {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  messages  Message[]
+
+  @@map("chat_rooms")
+}
+
+/// チャットメッセージを管理するモデル
+model Message {
+  id         Int      @id @default(autoincrement())
+  content    String   @db.Text
+  userId     Int      @map("user_id")
+  chatRoomId Int      @map("chat_room_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId], map: "idx_messages_user_id")
+  @@index([chatRoomId], map: "idx_messages_chat_room_id")
+  @@index([chatRoomId, createdAt], map: "idx_messages_room_created")
+  @@map("messages")
+}
