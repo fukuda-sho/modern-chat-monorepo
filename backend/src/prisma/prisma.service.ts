@@ -55,7 +55,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    */
   constructor() {
     const dbUrl =
-      process.env.DATABASE_URL || 'mysql://chat_user:chat_password@localhost:3306/chat_app';
+      process.env.DATABASE_URL || 'mysql://chat_user:chat_password@localhost:3307/chat_app';
     const config = parseDbUrl(dbUrl);
 
     const adapter = new PrismaMariaDb({
