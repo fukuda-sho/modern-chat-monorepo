@@ -7,6 +7,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { setupSwagger } from './swagger';
 
 /**
  * アプリケーションのブートストラップ関数
@@ -27,6 +28,9 @@ async function bootstrap(): Promise<void> {
 
   // CORS を有効化
   app.enableCors();
+
+  // Swagger 設定（本番環境以外で有効）
+  setupSwagger(app);
 
   const port = process.env.PORT || 3000;
   await app.listen(port);

@@ -4,12 +4,15 @@
  */
 
 import { Controller, Get, HttpException, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { HealthService, HealthCheckResult } from './health.service';
+import { ServiceUnavailableResponseDto } from '../common/dto';
 
 /**
  * ヘルスチェックコントローラークラス
  * @description アプリケーションのヘルスチェックエンドポイントを提供
  */
+@ApiTags('health')
 @Controller('health')
 export class HealthController {
   /**
@@ -25,6 +28,19 @@ export class HealthController {
    * @throws {HttpException} 依存コンポーネントに障害がある場合は 503 を返却
    */
   @Get()
+  @ApiOperation({
+    summary: 'ヘルスチェック',
+    description: 'アプリケーションと依存コンポーネント（DB など）の稼働状況を確認します。',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'サーバー正常稼働',
+  })
+  @ApiResponse({
+    status: 503,
+    description: '依存コンポーネントに障害あり',
+    type: ServiceUnavailableResponseDto,
+  })
   async check(): Promise<HealthCheckResult> {
     const result = await this.healthService.checkHealth();
 
