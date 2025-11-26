@@ -43,10 +43,7 @@ services:
     container_name: chat_app_backend
     restart: unless-stopped
     env_file:
-      - ./backend/.env.development
-    environment:
-      # Docker 内部ネットワークでの DB 接続設定（env_file の値を上書き）
-      DATABASE_URL: mysql://chat_user:chat_password@db:3306/chat_app
+      - ./backend/.env.docker
     ports:
       - '3000:3000'
     depends_on:
