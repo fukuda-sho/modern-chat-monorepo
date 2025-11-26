@@ -132,33 +132,65 @@ yarn build && yarn start:prod
 
 ## Docker での実行
 
-### ビルド
+### 開発環境（ホットリロード付き）
+
+docker-compose.yml では `target: dev` が指定されており、ソースコードの変更が即座に反映されます。
 
 ```bash
 # プロジェクトルートで実行
-docker compose build backend
-```
+cd /home/deploy/development
 
-### 起動
-
-```bash
-# バックエンドのみ
+# バックエンドのみ起動
 docker compose up backend -d
 
-# 全サービス（DB, Backend, Frontend）
+# 全サービス起動（DB, Backend, Frontend）
 docker compose up -d
-```
 
-### ログ確認
-
-```bash
+# ログ確認（ホットリロードの動作確認）
 docker compose logs -f backend
+
+# 停止
+docker compose down
 ```
 
-### 停止
+**ホットリロードの仕組み:**
+- ローカルの `./backend` がコンテナ内の `/app` にマウントされる
+- `node_modules` はコンテナ側のものが優先される
+- ソースコード変更時、Nest CLI が自動で再ビルド・再起動
+
+### 本番環境用イメージのビルド
+
+CI/CD などで本番用イメージを作成する場合は、`target` を指定せずにビルドします。
 
 ```bash
-docker compose down
+cd backend
+
+# runner ステージでビルド
+docker build -t chat-backend:latest .
+
+# イメージのプッシュ
+docker push <registry>/chat-backend:latest
+```
+
+### Dockerfile ステージ構成
+
+| ステージ | 用途 | 説明 |
+|---------|------|------|
+| `base` | 共通 | Node.js 20 + Corepack |
+| `dev` | 開発 | ホットリロード付き（`yarn start:dev`） |
+| `builder` | ビルド | TypeScript コンパイル |
+| `runner` | 本番 | 最小構成で実行（`yarn start:prod`） |
+
+### リビルド
+
+コード変更後にコンテナを再ビルドする場合：
+
+```bash
+# 開発環境（通常は不要、ホットリロードで対応）
+docker compose build backend && docker compose up backend -d
+
+# キャッシュなしでビルド
+docker compose build --no-cache backend
 ```
 
 ## API エンドポイント
