@@ -1,6 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
+  "packageManager": "yarn@4.9.2",
   "main": "dist/main.js",
   "scripts": {
     "build": "nest build",
