@@ -42,7 +42,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      target: dev                       # dev ステージを使用
+      target: dev # dev ステージを使用
     container_name: chat_app_backend
     restart: unless-stopped
     env_file:
@@ -55,29 +55,29 @@ services:
     networks:
       - chat_network
     volumes:
-      - ./backend:/app                  # ローカルソースをコンテナにマウント
-      - /app/node_modules               # node_modules はコンテナ側を優先
+      - ./backend:/app # ローカルソースをコンテナにマウント
+      - /app/node_modules # node_modules はコンテナ側を優先
 
   # Frontend service (Next.js)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: dev                       # dev ステージを使用
+      target: dev # dev ステージを使用
     container_name: chat_app_frontend
     restart: unless-stopped
     env_file:
       - ./frontend/.env.docker
     ports:
-      - '3001:3000'                     # ホスト:3001 → コンテナ:3000
+      - '3001:3000' # ホスト:3001 → コンテナ:3000
     depends_on:
       - backend
     networks:
       - chat_network
     volumes:
-      - ./frontend:/app                 # ローカルソースをコンテナにマウント
-      - /app/node_modules               # node_modules はコンテナ側を優先
-      - /app/.next                      # .next はコンテナ側を優先
+      - ./frontend:/app # ローカルソースをコンテナにマウント
+      - /app/node_modules # node_modules はコンテナ側を優先
+      - /app/.next # .next はコンテナ側を優先
 
 volumes:
   db_data:

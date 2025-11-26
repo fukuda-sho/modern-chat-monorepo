@@ -8,7 +8,7 @@ interface AuthLayoutProps {
 
 export function AuthLayout({ children }: AuthLayoutProps) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted p-4">
+    <div className="from-background to-muted flex min-h-screen items-center justify-center bg-gradient-to-br p-4">
       {children}
     </div>
   );

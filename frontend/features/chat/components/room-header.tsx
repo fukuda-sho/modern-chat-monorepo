@@ -30,7 +30,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
   };
 
   return (
-    <header className="flex items-center gap-3 border-b bg-background px-4 py-3">
+    <header className="bg-background flex items-center gap-3 border-b px-4 py-3">
       <Button variant="ghost" size="icon" asChild className="md:hidden">
         <Link href="/chat">
           <ArrowLeft className="h-5 w-5" />
@@ -40,9 +40,7 @@ export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
 
       <div className="flex flex-1 items-center gap-2">
         <div className={`h-2 w-2 rounded-full ${getStatusColor()}`} />
-        <h1 className="font-semibold">
-          {roomName || `Room ${roomId}`}
-        </h1>
+        <h1 className="font-semibold">{roomName || `Room ${roomId}`}</h1>
       </div>
 
       <Badge variant="secondary" className="gap-1">

@@ -33,7 +33,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
   };
 
   return (
-    <div className="border-t bg-background p-4">
+    <div className="bg-background border-t p-4">
       <div className="flex items-end gap-2">
         <Textarea
           value={content}
@@ -41,7 +41,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
           onKeyDown={handleKeyDown}
           placeholder="メッセージを入力..."
           disabled={disabled}
-          className="min-h-[44px] max-h-[120px] resize-none"
+          className="max-h-[120px] min-h-[44px] resize-none"
           rows={1}
         />
         <Button
@@ -55,7 +55,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
         </Button>
       </div>
       {disabled && (
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="text-muted-foreground mt-2 text-xs">
           接続中... しばらくお待ちください
         </p>
       )}

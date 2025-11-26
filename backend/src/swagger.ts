@@ -4,7 +4,7 @@
  */
 
 import { INestApplication } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
 
 /**
  * Swagger ドキュメントの設定オプション
@@ -28,10 +28,10 @@ const DEFAULT_CONFIG: SwaggerConfig = {
 
 /**
  * Swagger ドキュメントビルダーを作成する
- * @param {SwaggerConfig} config - Swagger 設定オプション
- * @returns {ReturnType<typeof DocumentBuilder.prototype.build>} OpenAPI ドキュメント設定
+ * @param config - Swagger 設定オプション
+ * @returns OpenAPI ドキュメント設定
  */
-function createDocumentConfig(config: SwaggerConfig) {
+function createDocumentConfig(config: SwaggerConfig): Omit<OpenAPIObject, 'paths'> {
   return new DocumentBuilder()
     .setTitle(config.title)
     .setDescription(config.description)
@@ -69,10 +69,7 @@ function isProduction(): boolean {
  * @param {Partial<SwaggerConfig>} customConfig - カスタム設定（オプション）
  * @returns {void}
  */
-export function setupSwagger(
-  app: INestApplication,
-  customConfig?: Partial<SwaggerConfig>,
-): void {
+export function setupSwagger(app: INestApplication, customConfig?: Partial<SwaggerConfig>): void {
   // 本番環境では Swagger を無効化
   if (isProduction()) {
     // eslint-disable-next-line no-console
@@ -98,5 +95,7 @@ export function setupSwagger(
   });
 
   // eslint-disable-next-line no-console
-  console.log(`Swagger UI is available at: http://localhost:${process.env.PORT || 3000}/${config.path}`);
+  console.log(
+    `Swagger UI is available at: http://localhost:${process.env.PORT || 3000}/${config.path}`,
+  );
 }

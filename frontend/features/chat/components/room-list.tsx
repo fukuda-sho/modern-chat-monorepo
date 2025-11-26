@@ -23,7 +23,7 @@ export function RoomList() {
   return (
     <ScrollArea className="h-full">
       <div className="space-y-1 p-2">
-        <h2 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="text-muted-foreground mb-2 px-2 text-xs font-semibold tracking-wider uppercase">
           Channels
         </h2>
         {MOCK_ROOMS.map((room) => (

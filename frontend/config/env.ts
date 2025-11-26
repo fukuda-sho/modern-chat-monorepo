@@ -12,7 +12,9 @@ import { z } from 'zod';
  */
 const envSchema = z.object({
   /** アプリケーション環境 */
-  appEnv: z.enum(['development', 'staging', 'production']).default('development'),
+  appEnv: z
+    .enum(['development', 'staging', 'production'])
+    .default('development'),
 
   /** バックエンド API のベース URL */
   apiBaseUrl: z.string().url().default('http://localhost:3000'),
@@ -43,7 +45,10 @@ function getEnv(): Env {
   const result = envSchema.safeParse(rawEnv);
 
   if (!result.success) {
-    console.error('Environment variable validation failed:', result.error.format());
+    console.error(
+      'Environment variable validation failed:',
+      result.error.format()
+    );
     // 開発環境ではデフォルト値で続行
     return envSchema.parse({});
   }

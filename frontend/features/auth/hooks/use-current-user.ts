@@ -13,6 +13,7 @@ export function useCurrentUser() {
     queryKey: ['currentUser'],
     queryFn: getCurrentUser,
     retry: false,
-    enabled: typeof window !== 'undefined' && !!localStorage.getItem(AUTH_TOKEN_KEY),
+    enabled:
+      typeof window !== 'undefined' && !!localStorage.getItem(AUTH_TOKEN_KEY),
   });
 }

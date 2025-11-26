@@ -18,17 +18,13 @@ const envSchema = z.object({
    * アプリケーション環境
    * @default 'development'
    */
-  APP_ENV: z
-    .enum(['development', 'staging', 'production'])
-    .default('development'),
+  APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
 
   /**
    * ログレベル
    * @default 'info'
    */
-  APP_LOG_LEVEL: z
-    .enum(['debug', 'info', 'warn', 'error'])
-    .default('info'),
+  APP_LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
   /**
    * バックエンドサーバーのポート番号

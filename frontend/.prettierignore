@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+out/
+dist/
+
+# Cache
+.cache/
+
+# Yarn
+.yarn/
+.pnp.*
+
+# Generated files
+*.min.js
+*.min.css
+
+# Lock files
+yarn.lock
+package-lock.json

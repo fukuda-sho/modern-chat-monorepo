@@ -19,7 +19,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const { logout } = useLogout();
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-background px-4">
+    <header className="bg-background flex h-14 items-center justify-between border-b px-4">
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -32,7 +32,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         </Button>
 
         <div className="flex items-center gap-2">
-          <MessageCircle className="h-6 w-6 text-primary" />
+          <MessageCircle className="text-primary h-6 w-6" />
           <span className="text-lg font-bold">Chat App</span>
         </div>
       </div>

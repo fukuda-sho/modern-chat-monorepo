@@ -27,7 +27,7 @@ export function MessageList({ messages, className }: MessageListProps) {
     <ScrollArea className={cn('px-4', className)}>
       <div ref={scrollRef} className="space-y-4 py-4">
         {messages.length === 0 ? (
-          <div className="flex h-full min-h-[200px] items-center justify-center text-muted-foreground">
+          <div className="text-muted-foreground flex h-full min-h-[200px] items-center justify-center">
             メッセージはまだありません
           </div>
         ) : (

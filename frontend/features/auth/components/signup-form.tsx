@@ -68,7 +68,7 @@ export function SignupForm() {
           aria-invalid={!!form.formState.errors.username}
         />
         {form.formState.errors.username && (
-          <p className="text-sm text-destructive">
+          <p className="text-destructive text-sm">
             {form.formState.errors.username.message}
           </p>
         )}
@@ -85,7 +85,7 @@ export function SignupForm() {
           aria-invalid={!!form.formState.errors.email}
         />
         {form.formState.errors.email && (
-          <p className="text-sm text-destructive">
+          <p className="text-destructive text-sm">
             {form.formState.errors.email.message}
           </p>
         )}
@@ -101,7 +101,7 @@ export function SignupForm() {
           aria-invalid={!!form.formState.errors.password}
         />
         {form.formState.errors.password && (
-          <p className="text-sm text-destructive">
+          <p className="text-destructive text-sm">
             {form.formState.errors.password.message}
           </p>
         )}
@@ -117,15 +117,13 @@ export function SignupForm() {
           aria-invalid={!!form.formState.errors.confirmPassword}
         />
         {form.formState.errors.confirmPassword && (
-          <p className="text-sm text-destructive">
+          <p className="text-destructive text-sm">
             {form.formState.errors.confirmPassword.message}
           </p>
         )}
       </div>
 
-      {error && (
-        <p className="text-sm text-destructive">{getErrorMessage()}</p>
-      )}
+      {error && <p className="text-destructive text-sm">{getErrorMessage()}</p>}
 
       <Button type="submit" className="w-full" disabled={isPending}>
         {isPending ? '登録中...' : 'アカウント作成'}

@@ -30,15 +30,15 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+          className="absolute top-0 right-0 h-full px-3 hover:bg-transparent"
           onClick={() => setShowPassword(!showPassword)}
           aria-label={showPassword ? 'パスワードを隠す' : 'パスワードを表示'}
           tabIndex={-1}
         >
           {showPassword ? (
-            <EyeOff className="h-4 w-4 text-muted-foreground" />
+            <EyeOff className="text-muted-foreground h-4 w-4" />
           ) : (
-            <Eye className="h-4 w-4 text-muted-foreground" />
+            <Eye className="text-muted-foreground h-4 w-4" />
           )}
         </Button>
       </div>

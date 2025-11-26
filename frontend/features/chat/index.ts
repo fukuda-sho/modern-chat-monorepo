@@ -22,4 +22,8 @@ export { useScrollToBottom } from './hooks/use-scroll-to-bottom';
 export { useChatStore } from './store/chat-store';
 
 // Types
-export type { Message, Room, ConnectionStatus as ConnectionStatusType } from './types';
+export type {
+  Message,
+  Room,
+  ConnectionStatus as ConnectionStatusType,
+} from './types';

@@ -32,7 +32,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         {/* サイドバー */}
         <Sidebar
           className={cn(
-            'fixed inset-y-0 left-0 top-14 z-50 transition-transform md:static md:translate-x-0',
+            'fixed inset-y-0 top-14 left-0 z-50 transition-transform md:static md:translate-x-0',
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         />

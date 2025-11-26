@@ -45,11 +45,11 @@ function MessageItemComponent({ message, isOwn }: MessageItemProps) {
         className={cn(
           'max-w-[70%] rounded-2xl px-4 py-2',
           isOwn
-            ? 'rounded-br-sm bg-primary text-primary-foreground'
-            : 'rounded-bl-sm bg-muted'
+            ? 'bg-primary text-primary-foreground rounded-br-sm'
+            : 'bg-muted rounded-bl-sm'
         )}
       >
-        <p className="break-words text-sm">{message.content}</p>
+        <p className="text-sm break-words">{message.content}</p>
         <time
           className={cn(
             'mt-1 block text-xs',
