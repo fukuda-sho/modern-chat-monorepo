@@ -85,7 +85,7 @@
 # ============================================
 # Base ステージ（共通設定）
 # ============================================
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 WORKDIR /app
 RUN corepack enable
 
@@ -98,7 +98,6 @@ ENV NODE_ENV=development
 COPY package.json yarn.lock .yarnrc.yml ./
 RUN yarn install --immutable
 
-# Prisma クライアント生成
 COPY prisma ./prisma
 RUN yarn prisma:generate
 
@@ -110,7 +109,7 @@ CMD ["yarn", "start:dev"]
 # Builder ステージ（本番ビルド）
 # ============================================
 FROM base AS builder
-ENV NODE_ENV=production
+# NODE_ENV は設定しない（devDependencies が必要なため）
 
 COPY package.json yarn.lock .yarnrc.yml ./
 RUN yarn install --immutable
@@ -129,15 +128,17 @@ FROM base AS runner
 ENV NODE_ENV=production
 ENV BACKEND_PORT=3000
 
+# wget インストール（HEALTHCHECK 用）
+RUN apk add --no-cache wget
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
-COPY package.json yarn.lock .yarnrc.yml ./
-RUN yarn install --immutable
-
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+# builder から node_modules をコピー（.prisma 含む、再インストール不要）
+COPY --from=builder /app/node_modules ./node_modules
 COPY prisma ./prisma
 COPY --from=builder /app/dist ./dist
+COPY package.json ./
 
 RUN chown -R nestjs:nodejs /app
 USER nestjs
@@ -147,8 +148,18 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
+# node 直接実行（シグナルハンドリング最適化）
 CMD ["node", "dist/main.js"]
 ```
+
+### 3.3 ベストプラクティスのポイント
+
+| 項目 | 実装 |
+|------|------|
+| builder で NODE_ENV 未設定 | devDependencies（TypeScript 等）が必要なため |
+| runner で再インストールしない | builder から node_modules をコピーしてビルド時間短縮 |
+| wget インストール | alpine には wget がないため HEALTHCHECK 用に追加 |
+| node 直接実行 | シグナル（SIGTERM）の正確な伝播、グレースフルシャットダウン対応 |
 
 ---
 
