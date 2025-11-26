@@ -2,7 +2,8 @@
 
 ## 作業日
 
-2025-11-25
+2025-11-26（設計方針ドキュメント追記）
+2025-11-25（初回実装）
 
 ---
 
@@ -78,6 +79,15 @@ yarn add @nestjs/websockets @nestjs/platform-socket.io socket.io
 
 ## 重要な設計・仕様上の決定事項
 
+### ChatRoom 単位の設計方針
+
+- すべてのチャットは **「ChatRoom 単位」** で扱う
+- WebSocket イベントは `roomId` をキーとした汎用インターフェース
+- 1対1チャット / グループチャットの区別は現時点では未実装
+- 将来的に `ChatRoom.type` フィールド（`'DIRECT' | 'GROUP'`）で種別管理を予定
+- 将来的に `ChatRoomMember` テーブルでルーム参加権限を管理予定
+- 現在の WebSocket イベントは将来の拡張後も互換性を維持
+
 ### WebSocket イベント一覧
 
 | 方向 | イベント名 | 目的 |
@@ -131,6 +141,38 @@ backend/src/chat/
 | @nestjs/websockets | ^11.0.20 | NestJS WebSocket サポート |
 | @nestjs/platform-socket.io | ^11.0.20 | Socket.IO アダプター |
 | socket.io | ^4.8.1 | WebSocket ライブラリ |
+
+---
+
+## 今後の拡張余地
+
+### 1. 1対1 / グループチャット機能
+
+- `ChatRoom` に `type` フィールドを追加（`'DIRECT' | 'GROUP'`）
+- `ChatRoomMember` テーブルでルームメンバーシップを管理
+- 1対1チャットは既存ルームの再利用ロジックを実装
+
+### 2. 既読管理
+
+- `MessageRead` テーブルの追加（`messageId`, `userId`, `readAt`）
+- `markAsRead` イベントの追加
+- 既読数・未読数の通知
+
+### 3. メッセージ編集・削除
+
+- `editMessage` / `deleteMessage` イベントの追加
+- `Message` に `updatedAt`, `deletedAt` フィールドを追加
+- `messageUpdated` / `messageDeleted` 通知イベント
+
+### 4. タイピングインジケーター
+
+- `typing` / `stopTyping` イベントの追加
+- ルーム内の他ユーザーに「入力中」を通知
+
+### 5. オンラインステータス
+
+- 接続中ユーザーの管理
+- `userOnline` / `userOffline` イベント
 
 ---
 

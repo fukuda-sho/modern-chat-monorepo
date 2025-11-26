@@ -37,6 +37,41 @@ services:
       retries: 5
       start_period: 30s
 
+  # Backend service (NestJS)
+  # Uncomment when Dockerfile is ready
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: chat_app_backend
+  #   restart: unless-stopped
+  #   env_file:
+  #     - ./backend/.env
+  #   ports:
+  #     - '3000:3000'
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   networks:
+  #     - chat_network
+
+  # Frontend service (Next.js)
+  # Uncomment when Dockerfile is ready
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: chat_app_frontend
+  #   restart: unless-stopped
+  #   env_file:
+  #     - ./frontend/.env.development
+  #   ports:
+  #     - '3001:3001'
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - chat_network
+
 volumes:
   db_data:
     driver: local

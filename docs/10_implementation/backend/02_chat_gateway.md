@@ -1,5 +1,75 @@
 # WebSocket Chat Gateway 仕様書
 
+## 0. 設計方針（1対1 / グループチャット拡張性）
+
+### 0.1 ChatRoom 単位の設計
+
+本システムでは、チャットはすべて **「ChatRoom 単位」** で扱います。WebSocket イベントは `roomId` をキーとした汎用インターフェースとして設計されており、1対1チャットとグループチャットを同一の仕組みで処理できます。
+
+### 0.2 現在の実装
+
+現時点では、1対1チャットとグループチャットの区別は実装していません。すべてのチャットルームは同等に扱われ、`roomId` を指定してメッセージを送受信します。
+
+```
+現在のスキーマ:
+- User: ユーザー情報
+- ChatRoom: チャットルーム（種別なし）
+- Message: メッセージ（userId, chatRoomId で関連付け）
+```
+
+### 0.3 将来の拡張方針
+
+LINE のような 1対1チャット / グループチャットを実現するため、将来的に以下の拡張を想定しています。
+
+#### ChatRoom への種別追加
+
+```typescript
+// 将来追加予定のフィールド
+model ChatRoom {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(255)
+  type      String    @default("GROUP") @db.VarChar(20)  // 'DIRECT' | 'GROUP'
+  createdAt DateTime  @default(now()) @map("created_at")
+  messages  Message[]
+  members   ChatRoomMember[]
+
+  @@map("chat_rooms")
+}
+```
+
+#### ChatRoomMember テーブルの追加
+
+「どのユーザがどのルームに参加できるか」を管理するテーブル:
+
+```typescript
+// 将来追加予定のモデル
+model ChatRoomMember {
+  id         Int      @id @default(autoincrement())
+  chatRoomId Int      @map("chat_room_id")
+  userId     Int      @map("user_id")
+  joinedAt   DateTime @default(now()) @map("joined_at")
+  role       String   @default("MEMBER") @db.VarChar(20)  // 'OWNER' | 'ADMIN' | 'MEMBER'
+
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatRoomId, userId])
+  @@map("chat_room_members")
+}
+```
+
+#### 1対1チャットの実現方法
+
+- `type: 'DIRECT'` のルームは、`ChatRoomMember` に2人のユーザーのみが登録される
+- 既存の DIRECT ルームがある場合は、新規作成せず既存ルームを返す
+- グループチャット (`type: 'GROUP'`) は3人以上のメンバーを持てる
+
+### 0.4 現在の WebSocket イベントとの互換性
+
+現在実装している WebSocket イベント（`joinRoom`, `leaveRoom`, `sendMessage`, `messageCreated`）は、将来の拡張後も変更なく利用できます。ルーム種別やメンバー管理は REST API 側で行い、WebSocket は `roomId` ベースのリアルタイム通信に専念します。
+
+---
+
 ## 1. WebSocket イベント名リスト
 
 ### 1.1 Client → Server イベント

@@ -1,15 +1,30 @@
 /**
  * アプリケーション定数
+ *
+ * 環境変数は config/env.ts から取得する。
+ * このファイルでは環境変数を直接参照しない。
  */
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+import { env } from '@/config/env';
 
-export const WS_URL =
-  process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3000';
+/**
+ * API ベース URL
+ */
+export const API_BASE_URL = env.apiBaseUrl;
 
+/**
+ * WebSocket URL
+ */
+export const WS_URL = env.wsUrl;
+
+/**
+ * 認証トークンのストレージキー
+ */
 export const AUTH_TOKEN_KEY = 'accessToken';
 
+/**
+ * WebSocket 再接続設定
+ */
 export const RECONNECT_CONFIG = {
   maxAttempts: 10,
   baseDelay: 1000,
