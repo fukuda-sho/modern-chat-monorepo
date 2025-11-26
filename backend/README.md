@@ -4,18 +4,18 @@ NestJS ベースのリアルタイムチャットアプリケーション バッ
 
 ## 技術スタック
 
-| カテゴリ | 技術 |
-|---------|------|
-| フレームワーク | NestJS 11.x |
-| 言語 | TypeScript 5.x (strict mode) |
-| パッケージマネージャ | Yarn 4.x (Berry) |
-| データベース | MySQL 8.x |
-| ORM | Prisma 7.x |
-| 認証 | JWT + Passport |
-| リアルタイム通信 | Socket.io |
-| バリデーション | class-validator, Zod |
-| API ドキュメント | Swagger (OpenAPI) |
-| コンテナ | Docker |
+| カテゴリ             | 技術                         |
+| -------------------- | ---------------------------- |
+| フレームワーク       | NestJS 11.x                  |
+| 言語                 | TypeScript 5.x (strict mode) |
+| パッケージマネージャ | Yarn 4.x (Berry)             |
+| データベース         | MySQL 8.x                    |
+| ORM                  | Prisma 7.x                   |
+| 認証                 | JWT + Passport               |
+| リアルタイム通信     | Socket.io                    |
+| バリデーション       | class-validator, Zod         |
+| API ドキュメント     | Swagger (OpenAPI)            |
+| コンテナ             | Docker                       |
 
 ## プロジェクト構成
 
@@ -57,8 +57,7 @@ backend/
 │   └── schema.prisma          # データベーススキーマ
 ├── Dockerfile                 # Docker イメージ定義
 ├── .env.example               # 環境変数テンプレート
-├── .env.development           # ローカル開発用 (Git 管理外)
-├── .env.docker                # Docker 用 (Git 管理外)
+├── .env                       # 環境変数 (Git 管理外)
 └── package.json
 ```
 
@@ -66,97 +65,79 @@ backend/
 
 ### 前提条件
 
-- Node.js 20.x 以上
-- Yarn 4.x
-- MySQL 8.x（または Docker）
+- Docker Desktop または Docker Engine
+- Docker Compose v2
 
-### 1. 依存関係のインストール
-
-```bash
-yarn install
-```
-
-### 2. 環境変数の設定
+### 1. 環境変数の設定
 
 ```bash
-# ローカル開発用
-cp .env.example .env.development
-
-# Docker 用
-cp .env.example .env.docker
+cp .env.example .env
 ```
 
 #### 環境変数一覧
 
-| 変数名 | 説明 | デフォルト |
-|--------|------|-----------|
-| `APP_ENV` | 環境 (development/staging/production) | development |
-| `APP_LOG_LEVEL` | ログレベル (debug/info/warn/error) | info |
-| `BACKEND_PORT` | サーバーポート | 3000 |
-| `DATABASE_URL` | MySQL 接続文字列 | - |
-| `JWT_SECRET` | JWT 署名キー（16文字以上） | - |
-| `JWT_EXPIRES_IN` | JWT 有効期限 | 1h |
+| 変数名           | 説明                                  | デフォルト  |
+| ---------------- | ------------------------------------- | ----------- |
+| `APP_ENV`        | 環境 (development/staging/production) | development |
+| `APP_LOG_LEVEL`  | ログレベル (debug/info/warn/error)    | info        |
+| `BACKEND_PORT`   | サーバーポート                        | 3000        |
+| `DATABASE_URL`   | MySQL 接続文字列                      | -           |
+| `JWT_SECRET`     | JWT 署名キー（16文字以上）            | -           |
+| `JWT_EXPIRES_IN` | JWT 有効期限                          | 1h          |
 
-#### DATABASE_URL の違い
+> **Note**: `DATABASE_URL` のホスト名は `db:3306`（Docker 内部ネットワーク）を使用します。
 
-| 環境 | ホスト | ポート |
-|------|--------|--------|
-| ローカル実行 | `localhost` | `3307` |
-| Docker 実行 | `db` | `3306` |
-
-### 3. データベースのセットアップ
-
-```bash
-# Prisma クライアント生成
-yarn prisma:generate
-
-# マイグレーション実行
-yarn prisma:migrate
-
-# (オプション) Prisma Studio 起動
-yarn prisma:studio
-```
-
-### 4. 開発サーバーの起動
-
-```bash
-# 開発モード（ホットリロード）
-yarn start:dev
-
-# デバッグモード
-yarn start:debug
-
-# 本番モード
-yarn build && yarn start:prod
-```
-
-## Docker での実行
-
-### 開発環境（ホットリロード付き）
-
-docker-compose.yml では `target: dev` が指定されており、ソースコードの変更が即座に反映されます。
+### 2. 開発環境の起動
 
 ```bash
 # プロジェクトルートで実行
 cd /home/deploy/development
 
-# バックエンドのみ起動
-docker compose up backend -d
-
 # 全サービス起動（DB, Backend, Frontend）
 docker compose up -d
+
+# ログ確認
+docker compose logs -f backend
+```
+
+### 3. データベースのセットアップ
+
+```bash
+# マイグレーション実行
+docker compose exec backend yarn prisma:migrate
+
+# Prisma クライアント生成（通常は自動実行される）
+docker compose exec backend yarn prisma:generate
+
+# (オプション) Prisma Studio 起動
+docker compose exec backend yarn prisma:studio
+```
+
+## Docker 開発環境
+
+### ホットリロードの仕組み
+
+docker-compose.yml では `target: dev` が指定されており、ソースコードの変更が即座に反映されます。
+
+- ローカルの `./backend` がコンテナ内の `/app` にマウントされる
+- `node_modules` はコンテナ側のものが優先される
+- ソースコード変更時、Nest CLI が自動で再ビルド・再起動
+
+### よく使うコマンド
+
+```bash
+# バックエンドのみ起動
+docker compose up backend -d
 
 # ログ確認（ホットリロードの動作確認）
 docker compose logs -f backend
 
 # 停止
 docker compose down
-```
 
-**ホットリロードの仕組み:**
-- ローカルの `./backend` がコンテナ内の `/app` にマウントされる
-- `node_modules` はコンテナ側のものが優先される
-- ソースコード変更時、Nest CLI が自動で再ビルド・再起動
+# コンテナ内でシェル実行
+docker compose exec backend sh
+```
 
 ### 本番環境用イメージのビルド
 
@@ -174,12 +155,12 @@ docker push <registry>/chat-backend:latest
 
 ### Dockerfile ステージ構成
 
-| ステージ | 用途 | 説明 |
-|---------|------|------|
-| `base` | 共通 | Node.js 20 + Corepack |
-| `dev` | 開発 | ホットリロード付き（`yarn start:dev`） |
-| `builder` | ビルド | TypeScript コンパイル |
-| `runner` | 本番 | 最小構成で実行（`yarn start:prod`） |
+| ステージ  | 用途   | 説明                                   |
+| --------- | ------ | -------------------------------------- |
+| `base`    | 共通   | Node.js 22 LTS + Corepack              |
+| `dev`     | 開発   | ホットリロード付き（`yarn start:dev`） |
+| `builder` | ビルド | TypeScript コンパイル                  |
+| `runner`  | 本番   | 最小構成で実行（`yarn start:prod`）    |
 
 ### リビルド
 
@@ -197,31 +178,31 @@ docker compose build --no-cache backend
 
 ### REST API
 
-| メソッド | パス | 説明 | 認証 |
-|---------|------|------|------|
-| `POST` | `/auth/signup` | ユーザー登録 | 不要 |
-| `POST` | `/auth/login` | ログイン | 不要 |
-| `GET` | `/users/me` | 現在のユーザー情報 | 必要 |
-| `GET` | `/health` | ヘルスチェック | 不要 |
+| メソッド | パス           | 説明               | 認証 |
+| -------- | -------------- | ------------------ | ---- |
+| `POST`   | `/auth/signup` | ユーザー登録       | 不要 |
+| `POST`   | `/auth/login`  | ログイン           | 不要 |
+| `GET`    | `/users/me`    | 現在のユーザー情報 | 必要 |
+| `GET`    | `/health`      | ヘルスチェック     | 不要 |
 
 ### WebSocket イベント
 
 #### Client → Server
 
-| イベント | ペイロード | 説明 |
-|---------|-----------|------|
-| `joinRoom` | `{ roomId: number }` | ルーム参加 |
-| `leaveRoom` | `{ roomId: number }` | ルーム退出 |
+| イベント      | ペイロード                            | 説明           |
+| ------------- | ------------------------------------- | -------------- |
+| `joinRoom`    | `{ roomId: number }`                  | ルーム参加     |
+| `leaveRoom`   | `{ roomId: number }`                  | ルーム退出     |
 | `sendMessage` | `{ roomId: number, content: string }` | メッセージ送信 |
 
 #### Server → Client
 
-| イベント | ペイロード | 説明 |
-|---------|-----------|------|
-| `roomJoined` | `{ roomId: number }` | ルーム参加完了 |
-| `roomLeft` | `{ roomId: number }` | ルーム退出完了 |
+| イベント         | ペイロード                                   | 説明           |
+| ---------------- | -------------------------------------------- | -------------- |
+| `roomJoined`     | `{ roomId: number }`                         | ルーム参加完了 |
+| `roomLeft`       | `{ roomId: number }`                         | ルーム退出完了 |
 | `messageCreated` | `{ id, roomId, userId, content, createdAt }` | 新規メッセージ |
-| `error` | `{ message: string, code?: string }` | エラー |
+| `error`          | `{ message: string, code?: string }`         | エラー         |
 
 ### WebSocket 接続例
 
@@ -230,8 +211,8 @@ import { io } from 'socket.io-client';
 
 const socket = io('http://localhost:3000', {
   auth: {
-    token: `Bearer ${accessToken}`
-  }
+    token: `Bearer ${accessToken}`,
+  },
 });
 
 // ルーム参加
@@ -260,46 +241,46 @@ http://localhost:3000/api/docs
 
 ### User
 
-| カラム | 型 | 説明 |
-|--------|---|------|
-| id | INT | 主キー |
-| username | VARCHAR(255) | ユーザー名（一意） |
-| email | VARCHAR(255) | メールアドレス（一意） |
-| password | VARCHAR(255) | ハッシュ化パスワード |
-| createdAt | DATETIME | 作成日時 |
+| カラム    | 型           | 説明                   |
+| --------- | ------------ | ---------------------- |
+| id        | INT          | 主キー                 |
+| username  | VARCHAR(255) | ユーザー名（一意）     |
+| email     | VARCHAR(255) | メールアドレス（一意） |
+| password  | VARCHAR(255) | ハッシュ化パスワード   |
+| createdAt | DATETIME     | 作成日時               |
 
 ### ChatRoom
 
-| カラム | 型 | 説明 |
-|--------|---|------|
-| id | INT | 主キー |
-| name | VARCHAR(255) | ルーム名 |
-| createdAt | DATETIME | 作成日時 |
+| カラム    | 型           | 説明     |
+| --------- | ------------ | -------- |
+| id        | INT          | 主キー   |
+| name      | VARCHAR(255) | ルーム名 |
+| createdAt | DATETIME     | 作成日時 |
 
 ### Message
 
-| カラム | 型 | 説明 |
-|--------|---|------|
-| id | INT | 主キー |
-| content | TEXT | メッセージ内容 |
-| userId | INT | 送信者 ID |
-| chatRoomId | INT | ルーム ID |
-| createdAt | DATETIME | 作成日時 |
+| カラム     | 型       | 説明           |
+| ---------- | -------- | -------------- |
+| id         | INT      | 主キー         |
+| content    | TEXT     | メッセージ内容 |
+| userId     | INT      | 送信者 ID      |
+| chatRoomId | INT      | ルーム ID      |
+| createdAt  | DATETIME | 作成日時       |
 
 ## スクリプト
 
-| コマンド | 説明 |
-|---------|------|
-| `yarn build` | TypeScript ビルド |
-| `yarn start` | アプリ起動 |
-| `yarn start:dev` | 開発モード（ホットリロード） |
-| `yarn start:debug` | デバッグモード |
-| `yarn start:prod` | 本番モード |
-| `yarn lint` | ESLint 実行 |
-| `yarn format` | Prettier 実行 |
-| `yarn prisma:generate` | Prisma クライアント生成 |
-| `yarn prisma:migrate` | マイグレーション実行 |
-| `yarn prisma:studio` | Prisma Studio 起動 |
+| コマンド               | 説明                         |
+| ---------------------- | ---------------------------- |
+| `yarn build`           | TypeScript ビルド            |
+| `yarn start`           | アプリ起動                   |
+| `yarn start:dev`       | 開発モード（ホットリロード） |
+| `yarn start:debug`     | デバッグモード               |
+| `yarn start:prod`      | 本番モード                   |
+| `yarn lint`            | ESLint 実行                  |
+| `yarn format`          | Prettier 実行                |
+| `yarn prisma:generate` | Prisma クライアント生成      |
+| `yarn prisma:migrate`  | マイグレーション実行         |
+| `yarn prisma:studio`   | Prisma Studio 起動           |
 
 ## 開発ガイドライン
 
@@ -319,7 +300,7 @@ http://localhost:3000/api/docs
 
 1. `.env.example` にキーを追加
 2. `src/config/env.ts` の Zod スキーマを更新
-3. 各環境の `.env.*` ファイルを更新
+3. `.env` ファイルを更新
 
 ## トラブルシューティング
 
