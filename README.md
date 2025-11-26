@@ -49,7 +49,8 @@
 │   ├── 00_planning/      # 設計・企画ドキュメント
 │   ├── 10_implementation/ # 実装ドキュメント
 │   └── 20_decisions/     # 技術選定・決定事項
-└── docker-compose.yml
+├── docker-compose.yml
+└── Makefile          # 開発用コマンド集
 ```
 
 ## クイックスタート (Docker Compose)
@@ -69,14 +70,14 @@ cd <project-directory>
 ### 2. 環境変数ファイルを準備
 
 ```bash
-# Backend 用（Docker 用は設定済み）
-cp backend/.env.example backend/.env.docker  # 必要に応じて
+# Backend 用
+cp backend/.env.example backend/.env
 
-# Frontend 用（Docker 用は設定済み）
-cp frontend/.env.example frontend/.env.docker  # 必要に応じて
+# Frontend 用
+cp frontend/.env.example frontend/.env
 ```
 
-> **Note**: `.env.docker` ファイルはデフォルト値で動作するよう設定されています。
+> **Note**: `.env` ファイルはデフォルト値で動作するよう設定されています。
 
 ### 3. 開発環境を起動
 
@@ -103,63 +104,6 @@ docker compose exec backend yarn prisma:migrate
 | Backend API | http://localhost:3000 | REST API エンドポイント |
 | Swagger UI | http://localhost:3000/api | API ドキュメント |
 
-## ローカル開発 (Docker なし)
-
-### 前提条件
-
-- Node.js 22 LTS
-- Yarn (Corepack で自動有効化)
-- MySQL 8.0
-
-### 1. パッケージマネージャーを有効化
-
-```bash
-corepack enable
-```
-
-### 2. Backend のセットアップ
-
-```bash
-cd backend
-
-# 依存関係をインストール
-yarn install
-
-# 環境変数を設定
-cp .env.example .env.development
-
-# DATABASE_URL を編集（ローカル MySQL に合わせる）
-# DATABASE_URL="mysql://user:password@localhost:3307/chat_app"
-
-# Prisma クライアントを生成
-yarn prisma:generate
-
-# データベースマイグレーション
-yarn prisma:migrate
-
-# 開発サーバーを起動（ホットリロード付き）
-yarn start:dev
-```
-
-### 3. Frontend のセットアップ
-
-```bash
-cd frontend
-
-# 依存関係をインストール
-yarn install
-
-# 環境変数を設定
-cp .env.example .env.local
-
-# 以下の環境変数を編集（ローカルホスト用）
-# NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
-# NEXT_PUBLIC_WS_URL=ws://localhost:3000
-
-# 開発サーバーを起動
-yarn dev
-```
-
 ## ポート構成
 
 | サービス | ホスト側ポート | コンテナ内ポート |
@@ -170,7 +114,26 @@ yarn dev
 
 ## よく使うコマンド
 
-### Docker Compose
+### Makefile（推奨）
+
+プロジェクトルートに `Makefile` が用意されています。
+
+```bash
+make up              # 全サービスを起動
+make down            # 全サービスを停止
+make logs            # 全サービスのログを表示
+make logs-backend    # Backend のログを表示
+make logs-frontend   # Frontend のログを表示
+make migrate         # Prisma マイグレーション実行
+make studio          # Prisma Studio 起動
+make shell-backend   # Backend コンテナにシェル接続
+make shell-db        # DB に MySQL 接続
+make rebuild         # キャッシュなしでリビルド
+make clean           # コンテナ・ボリューム削除（DB データも削除）
+make help            # コマンド一覧を表示
+```
+
+### Docker Compose（直接実行）
 
 ```bash
 # 全サービス起動
@@ -190,42 +153,30 @@ docker compose up -d --build
 docker compose down -v
 ```
 
-### Backend
+### Backend（コンテナ内で実行）
 
 ```bash
-# 開発サーバー起動
-yarn start:dev
-
-# 本番ビルド
-yarn build
+# マイグレーション実行
+docker compose exec backend yarn prisma:migrate
 
 # Prisma Studio（DB GUI）
-yarn prisma:studio
-
-# マイグレーション作成
-yarn prisma:migrate
+docker compose exec backend yarn prisma:studio
 
 # リント
-yarn lint
+docker compose exec backend yarn lint
 
 # フォーマット
-yarn format
+docker compose exec backend yarn format
 ```
 
-### Frontend
+### Frontend（コンテナ内で実行）
 
 ```bash
-# 開発サーバー起動
-yarn dev
-
-# 本番ビルド
-yarn build
-
-# 本番サーバー起動
-yarn start
-
 # リント
-yarn lint
+docker compose exec frontend yarn lint
+
+# フォーマット
+docker compose exec frontend yarn format
 ```
 
 ## データベーススキーマ
@@ -246,7 +197,15 @@ yarn lint
 
 ## 環境変数
 
-### Backend (`backend/.env.docker` / `.env.development`)
+環境変数は各サービスの `.env` ファイルで管理します。
+
+```bash
+# セットアップ
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+### Backend (`backend/.env`)
 
 | 変数名 | 説明 | デフォルト値 |
 |--------|------|-------------|
@@ -257,7 +216,7 @@ yarn lint
 | `JWT_SECRET` | JWT 署名キー | - |
 | `JWT_EXPIRES_IN` | JWT 有効期限 | 1h |
 
-### Frontend (`frontend/.env.docker` / `.env.local`)
+### Frontend (`frontend/.env`)
 
 | 変数名 | 説明 | デフォルト値 |
 |--------|------|-------------|

@@ -67,7 +67,7 @@ services:
     container_name: chat_app_frontend
     restart: unless-stopped
     env_file:
-      - ./frontend/.env.docker
+      - ./frontend/.env
     ports:
       - '3001:3000' # ホスト:3001 → コンテナ:3000
     depends_on:

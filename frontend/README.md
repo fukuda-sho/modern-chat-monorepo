@@ -15,7 +15,7 @@ Next.js ベースのリアルタイムチャットアプリケーション フ�
 | サーバー状態         | TanStack Query        | 5.x        |
 | フォーム             | React Hook Form + Zod | 7.x / 4.x  |
 | リアルタイム通信     | Socket.io Client      | 4.x        |
-| パッケージマネージャ | Yarn                  | 1.x        |
+| パッケージマネージャ | Yarn (Berry)          | 4.x        |
 
 ## クイックスタート
 
@@ -121,7 +121,7 @@ frontend/
 ├── public/                       # 静的ファイル
 │
 ├── .env.example                  # 環境変数テンプレート
-├── .env.docker                   # ローカル開発用
+├── .env                          # 環境変数 (Git 管理外)
 ├── .dockerignore
 ├── Dockerfile
 ├── components.json
@@ -137,12 +137,10 @@ frontend/
 
 ### ファイル構成
 
-| ファイル          | 用途                           | Git 管理 |
-| ----------------- | ------------------------------ | -------- |
-| `.env.example`    | テンプレート                   | Yes      |
-| `.env.docker`     | ローカル開発（Docker Compose） | Yes      |
-| `.env.production` | 本番環境                       | No       |
-| `.env.local`      | ローカル上書き（秘匿情報）     | No       |
+| ファイル       | 用途                           | Git 管理 |
+| -------------- | ------------------------------ | -------- |
+| `.env.example` | テンプレート                   | Yes      |
+| `.env`         | ローカル開発（Docker Compose） | No       |
 
 ### 変数一覧
 
