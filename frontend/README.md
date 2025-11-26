@@ -191,12 +191,130 @@ yarn dev
 
 ## スクリプト
 
-| コマンド     | 説明                            |
-| ------------ | ------------------------------- |
-| `yarn dev`   | 開発サーバー起動（ポート 3001） |
-| `yarn build` | 本番ビルド                      |
-| `yarn start` | 本番サーバー起動（ポート 3001） |
-| `yarn lint`  | ESLint 実行                     |
+| コマンド             | 説明                            |
+| -------------------- | ------------------------------- |
+| `yarn dev`           | 開発サーバー起動（ポート 3001） |
+| `yarn build`         | 本番ビルド                      |
+| `yarn start`         | 本番サーバー起動（ポート 3001） |
+| `yarn lint`          | ESLint 実行                     |
+| `yarn test`          | 単体テスト実行                  |
+| `yarn test:watch`    | テスト監視モード                |
+| `yarn test:coverage` | カバレッジ付きテスト実行        |
+
+## テスト
+
+### テスト環境
+
+| ツール                   | 用途                               |
+| ------------------------ | ---------------------------------- |
+| Vitest                   | テストランナー / アサーション      |
+| React Testing Library    | React コンポーネントテスト         |
+| @testing-library/user-event | ユーザーインタラクション        |
+| jsdom                    | DOM エミュレーション               |
+
+### テスト実行
+
+```bash
+cd frontend
+
+# 全テスト実行
+yarn test
+
+# 監視モード（ファイル変更時に自動実行）
+yarn test:watch
+
+# カバレッジレポート付き
+yarn test:coverage
+
+# 特定ファイルのみ実行
+yarn test features/chat/store/chat-store.test.ts
+
+# 特定パターンにマッチするテストのみ
+yarn test --grep "login"
+```
+
+### テストファイル配置
+
+テストファイルはソースコードと同階層に `*.test.ts(x)` で配置します（Co-located Tests）。
+
+```
+frontend/
+├── features/
+│   ├── auth/
+│   │   └── components/
+│   │       ├── login-form.tsx
+│   │       └── login-form.test.tsx      # コンポーネントテスト
+│   └── chat/
+│       ├── components/
+│       │   ├── message-input.tsx
+│       │   └── message-input.test.tsx
+│       ├── hooks/
+│       │   ├── use-chat-socket.ts
+│       │   └── use-chat-socket.test.ts  # フックテスト
+│       └── store/
+│           ├── chat-store.ts
+│           └── chat-store.test.ts       # ストアテスト
+└── lib/
+    ├── utils.ts
+    └── utils.test.ts                    # ユーティリティテスト
+```
+
+### テスト対象と優先度
+
+| 優先度 | 対象                         | 説明                     |
+| ------ | ---------------------------- | ------------------------ |
+| P1     | 認証フォーム                 | ログイン / サインアップ  |
+| P1     | チャットコンポーネント       | メッセージ入力 / 一覧    |
+| P1     | Zustand ストア               | 状態管理ロジック         |
+| P1     | WebSocket フック             | 接続管理                 |
+| P2     | ユーティリティ関数           | cn(), API クライアント   |
+| P3     | レイアウトコンポーネント     | 余力があれば             |
+
+### 現在のテストカバレッジ
+
+```bash
+# カバレッジレポート生成
+yarn test:coverage
+
+# HTML レポートは coverage/index.html で確認可能
+```
+
+| テストファイル                | テスト数 |
+| ----------------------------- | -------- |
+| `chat-store.test.ts`          | 11       |
+| `login-form.test.tsx`         | 8        |
+| `signup-form.test.tsx`        | 9        |
+| `message-input.test.tsx`      | 6        |
+| `room-list.test.tsx`          | 5        |
+| `room-item.test.tsx`          | 5        |
+| `use-chat-socket.test.ts`     | 11       |
+| `utils.test.ts`               | 15       |
+| `api-client.test.ts`          | 13       |
+| **合計**                      | **83**   |
+
+### テスト作成ガイドライン
+
+1. **ユーザー視点のテスト**: `getByRole`, `getByLabelText` で要素を取得
+2. **AAA パターン**: Arrange → Act → Assert の構造
+3. **1 テスト 1 主張**: テストケースを細かく分割
+4. **モック活用**: `vi.mock()` で外部依存をモック
+
+```tsx
+// テスト例
+it("送信ボタンを押すと onSend が呼ばれる", async () => {
+  // Arrange
+  const user = userEvent.setup();
+  const handleSend = vi.fn();
+  render(<MessageInput onSend={handleSend} />);
+
+  // Act
+  await user.type(screen.getByPlaceholderText("メッセージを入力..."), "hello");
+  await user.click(screen.getByRole("button", { name: "送信" }));
+
+  // Assert
+  expect(handleSend).toHaveBeenCalledWith("hello");
+});
+```
 
 ## アーキテクチャ
 
