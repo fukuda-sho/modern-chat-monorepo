@@ -2,7 +2,7 @@
 
 ## 0. ファイル情報
 
-- パス: `docs/10_implementation/frontend/11_frontend-env-and-config-management.md`
+- パス: `docs/10_implementation/frontend/05_frontend-env-and-config-management.md`
 - 対象: フロントエンドアプリケーション（`frontend/` ディレクトリ配下）
 - 目的:
   - Next.js (App Router) / React ベースのフロントエンドにおける環境変数・設定値（特に `NEXT_PUBLIC_*`）の管理方針を統一する。
@@ -41,6 +41,7 @@
 ### 2.1 カテゴリ
 
 1. **公開設定値（Public）**
+
    - ブラウザからも見える値
    - Next.js では **`NEXT_PUBLIC_` プレフィックス必須**
    - 例:
@@ -74,6 +75,7 @@ NEXT_PUBLIC_APP_VERSION=1.0.0
 ### 3.1 ファイル構成
 
 - `frontend/.env.example`
+
   - 使用するキーのみ記載（値はダミー）
   - **Git 管理 する**
 
@@ -103,7 +105,7 @@ services:
     env_file:
       - ./frontend/.env.development
     ports:
-      - "3001:3001"
+      - '3001:3001'
     depends_on:
       - backend
 ```
@@ -212,11 +214,13 @@ RUN yarn build
 ### 6.1 運用ルール
 
 1. **フロント用環境変数を変更したい場合:**
+
    - `frontend/.env.example` にキーを追加・更新する。
    - 開発用 `.env.development` を更新する。
    - 本番用は Parameter Store の該当キーを更新し、CI ビルドのタイミングで新しい値が反映されるようにする。
 
 2. **機密情報をフロントで扱わない。**
+
    - 必要になった場合は backend 経由の API で対応し、本ドキュメント＋バックエンド側の設計見直しが必要。
 
 3. **環境変数を直接コンポーネント内で乱用せず、`config/env.ts` のような集中管理モジュール経由で利用する。**
