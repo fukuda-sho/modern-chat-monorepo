@@ -8,6 +8,7 @@ export default [
   eslint.configs.recommended,
   {
     files: ['**/*.ts'],
+    ignores: ['**/*.spec.ts', 'jest.config.ts'],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
@@ -45,8 +46,47 @@ export default [
       'no-unused-vars': 'off', // Use TypeScript version instead
     },
   },
+  // Test files configuration
   {
-    ignores: ['dist/**', 'node_modules/**', '*.js', '*.mjs'],
+    files: ['**/*.spec.ts'],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        sourceType: 'module',
+      },
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        // Jest globals
+        jest: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint,
+      prettier: prettierPlugin,
+    },
+    rules: {
+      // Prettier integration
+      'prettier/prettier': 'error',
+
+      // Relaxed rules for tests
+      'no-console': 'off',
+      'no-unused-vars': 'off',
+    },
+  },
+  {
+    ignores: ['dist/**', 'node_modules/**', '*.js', '*.mjs', 'jest.config.ts'],
   },
   prettierConfig,
 ];

@@ -145,12 +145,12 @@ make migrate
 
 ### アクセス
 
-| サービス   | URL                         | 説明             |
-| ---------- | --------------------------- | ---------------- |
-| Frontend   | http://localhost:3001       | チャットアプリ   |
-| Backend    | http://localhost:3000       | REST API         |
-| Swagger UI | http://localhost:3000/api   | API ドキュメント |
-| MySQL      | localhost:3307              | DB 直接接続      |
+| サービス   | URL                       | 説明             |
+| ---------- | ------------------------- | ---------------- |
+| Frontend   | http://localhost:3001     | チャットアプリ   |
+| Backend    | http://localhost:3000     | REST API         |
+| Swagger UI | http://localhost:3000/api | API ドキュメント |
+| MySQL      | localhost:3307            | DB 直接接続      |
 
 ### ポート構成
 
@@ -168,31 +168,31 @@ make migrate
 
 ### 基本操作
 
-| コマンド       | 説明                            |
-| -------------- | ------------------------------- |
-| `make up`      | 全サービス起動                  |
-| `make down`    | 全サービス停止                  |
-| `make restart` | 全サービス再起動                |
-| `make ps`      | コンテナ状態確認                |
-| `make logs`    | 全サービスのログ表示            |
-| `make clean`   | コンテナ・ボリューム削除（注意）|
+| コマンド       | 説明                             |
+| -------------- | -------------------------------- |
+| `make up`      | 全サービス起動                   |
+| `make down`    | 全サービス停止                   |
+| `make restart` | 全サービス再起動                 |
+| `make ps`      | コンテナ状態確認                 |
+| `make logs`    | 全サービスのログ表示             |
+| `make clean`   | コンテナ・ボリューム削除（注意） |
 
 ### ログ確認
 
-| コマンド            | 説明                |
-| ------------------- | ------------------- |
-| `make logs`         | 全サービス          |
-| `make logs-backend` | Backend のみ        |
-| `make logs-frontend`| Frontend のみ       |
+| コマンド             | 説明          |
+| -------------------- | ------------- |
+| `make logs`          | 全サービス    |
+| `make logs-backend`  | Backend のみ  |
+| `make logs-frontend` | Frontend のみ |
 
 ### データベース
 
-| コマンド        | 説明                      |
-| --------------- | ------------------------- |
-| `make migrate`  | Prisma マイグレーション   |
-| `make studio`   | Prisma Studio 起動        |
-| `make generate` | Prisma クライアント生成   |
-| `make shell-db` | MySQL CLI 接続            |
+| コマンド        | 説明                    |
+| --------------- | ----------------------- |
+| `make migrate`  | Prisma マイグレーション |
+| `make studio`   | Prisma Studio 起動      |
+| `make generate` | Prisma クライアント生成 |
+| `make shell-db` | MySQL CLI 接続          |
 
 ### ビルド
 
@@ -203,40 +203,26 @@ make migrate
 
 ### テスト
 
-| コマンド                    | 説明                       |
-| --------------------------- | -------------------------- |
-| `make test`                 | Backend + Frontend 全実行  |
-| `make test-backend`         | Backend 単体テスト         |
-| `make test-backend-watch`   | Backend ウォッチモード     |
-| `make test-backend-coverage`| Backend カバレッジ         |
-| `make test-frontend`        | Frontend 単体テスト        |
-| `make test-frontend-watch`  | Frontend ウォッチモード    |
-| `make test-frontend-coverage`| Frontend カバレッジ       |
+| コマンド                      | 説明                      |
+| ----------------------------- | ------------------------- |
+| `make test`                   | Backend + Frontend 全実行 |
+| `make test-backend`           | Backend 単体テスト        |
+| `make test-backend-watch`     | Backend ウォッチモード    |
+| `make test-backend-coverage`  | Backend カバレッジ        |
+| `make test-frontend`          | Frontend 単体テスト       |
+| `make test-frontend-watch`    | Frontend ウォッチモード   |
+| `make test-frontend-coverage` | Frontend カバレッジ       |
 
 ### シェルアクセス
 
-| コマンド             | 説明                   |
-| -------------------- | ---------------------- |
-| `make shell-backend` | Backend コンテナに接続 |
-| `make shell-frontend`| Frontend コンテナに接続|
+| コマンド              | 説明                    |
+| --------------------- | ----------------------- |
+| `make shell-backend`  | Backend コンテナに接続  |
+| `make shell-frontend` | Frontend コンテナに接続 |
 
 ---
 
 ## Backend
-
-### REST API
-
-| メソッド | パス              | 説明               | 認証 |
-| -------- | ----------------- | ------------------ | ---- |
-| `POST`   | `/auth/signup`    | ユーザー登録       | 不要 |
-| `POST`   | `/auth/login`     | ログイン（JWT発行）| 不要 |
-| `GET`    | `/users/me`       | 自分のユーザー情報 | 必要 |
-| `GET`    | `/chat/rooms`     | ルーム一覧         | 必要 |
-| `POST`   | `/chat/rooms`     | ルーム作成         | 必要 |
-| `GET`    | `/chat/rooms/:id` | ルーム詳細         | 必要 |
-| `GET`    | `/health`         | ヘルスチェック     | 不要 |
-
-> 詳細は Swagger UI (http://localhost:3000/api) を参照
 
 ### WebSocket イベント
 
@@ -323,11 +309,11 @@ features/
 
 ### 状態管理の役割分担
 
-| 種類             | 技術            | 用途                        |
-| ---------------- | --------------- | --------------------------- |
-| サーバー状態     | TanStack Query  | API データ / キャッシュ     |
-| クライアント状態 | Zustand         | UI 状態 / 選択中ルームなど  |
-| フォーム状態     | React Hook Form | 入力値 / バリデーション     |
+| 種類             | 技術            | 用途                       |
+| ---------------- | --------------- | -------------------------- |
+| サーバー状態     | TanStack Query  | API データ / キャッシュ    |
+| クライアント状態 | Zustand         | UI 状態 / 選択中ルームなど |
+| フォーム状態     | React Hook Form | 入力値 / バリデーション    |
 
 ### Frontend スクリプト
 
@@ -348,10 +334,10 @@ yarn test:coverage  # カバレッジレポート
 
 ### テスト環境
 
-| サービス | ツール                              | 実行方法                |
-| -------- | ----------------------------------- | ----------------------- |
-| Backend  | Jest + @nestjs/testing              | `make test-backend`     |
-| Frontend | Vitest + React Testing Library      | `make test-frontend`    |
+| サービス | ツール                         | 実行方法             |
+| -------- | ------------------------------ | -------------------- |
+| Backend  | Jest + @nestjs/testing         | `make test-backend`  |
+| Frontend | Vitest + React Testing Library | `make test-frontend` |
 
 ### 全テスト実行
 
@@ -367,11 +353,11 @@ make test-backend-watch     # ウォッチモード
 make test-backend-coverage  # カバレッジ
 ```
 
-| テストファイル              | テスト数 |
-| --------------------------- | -------- |
-| `auth.service.spec.ts`      | 6        |
-| `auth.controller.spec.ts`   | 2        |
-| **合計**                    | **8**    |
+| テストファイル            | テスト数 |
+| ------------------------- | -------- |
+| `auth.service.spec.ts`    | 6        |
+| `auth.controller.spec.ts` | 2        |
+| **合計**                  | **8**    |
 
 ### Frontend テスト
 
@@ -383,87 +369,18 @@ make test-frontend-coverage # カバレッジ
 
 テストファイルはソースと同階層に `*.test.ts(x)` で配置（Co-located tests）。
 
-| テストファイル              | テスト数 |
-| --------------------------- | -------- |
-| `chat-store.test.ts`        | 11       |
-| `login-form.test.tsx`       | 8        |
-| `signup-form.test.tsx`      | 9        |
-| `message-input.test.tsx`    | 6        |
-| `room-list.test.tsx`        | 5        |
-| `room-item.test.tsx`        | 5        |
-| `use-chat-socket.test.ts`   | 11       |
-| `utils.test.ts`             | 15       |
-| `api-client.test.ts`        | 13       |
-| **合計**                    | **83**   |
-
----
-
-## データベース
-
-### ER 図
-
-```
-┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
-│      User       │       │    ChatRoom     │       │     Message     │
-├─────────────────┤       ├─────────────────┤       ├─────────────────┤
-│ id (PK)         │       │ id (PK)         │       │ id (PK)         │
-│ username        │       │ name            │       │ content         │
-│ email (UNIQUE)  │       │ createdAt       │       │ createdAt       │
-│ password        │       │ updatedAt       │       │ updatedAt       │
-│ createdAt       │       └─────────────────┘       │                 │
-│ updatedAt       │               │                 │ userId (FK) ────┼──▶ User.id
-└─────────────────┘               │                 │ chatRoomId (FK) ┼──▶ ChatRoom.id
-        │                         │                 └─────────────────┘
-        │                         │                         │
-        └─────────────────────────┴─────────────────────────┘
-                              N : N 関係
-```
-
-### テーブル定義
-
-**User**
-| カラム     | 型           | 制約                |
-| ---------- | ------------ | ------------------- |
-| id         | INT          | PK, AUTO_INCREMENT  |
-| username   | VARCHAR(255) | NOT NULL            |
-| email      | VARCHAR(255) | NOT NULL, UNIQUE    |
-| password   | VARCHAR(255) | NOT NULL (hashed)   |
-| createdAt  | DATETIME     | DEFAULT NOW()       |
-| updatedAt  | DATETIME     | ON UPDATE NOW()     |
-
-**ChatRoom**
-| カラム     | 型           | 制約                |
-| ---------- | ------------ | ------------------- |
-| id         | INT          | PK, AUTO_INCREMENT  |
-| name       | VARCHAR(255) | NOT NULL            |
-| createdAt  | DATETIME     | DEFAULT NOW()       |
-| updatedAt  | DATETIME     | ON UPDATE NOW()     |
-
-**Message**
-| カラム      | 型           | 制約                  |
-| ----------- | ------------ | --------------------- |
-| id          | INT          | PK, AUTO_INCREMENT    |
-| content     | TEXT         | NOT NULL              |
-| userId      | INT          | FK → User.id          |
-| chatRoomId  | INT          | FK → ChatRoom.id      |
-| createdAt   | DATETIME     | DEFAULT NOW()         |
-| updatedAt   | DATETIME     | ON UPDATE NOW()       |
-
-### DB 操作
-
-```bash
-# Prisma Studio（GUI）
-make studio
-
-# MySQL CLI 接続
-make shell-db
-
-# マイグレーション
-make migrate
-
-# クライアント再生成
-make generate
-```
+| テストファイル            | テスト数 |
+| ------------------------- | -------- |
+| `chat-store.test.ts`      | 11       |
+| `login-form.test.tsx`     | 8        |
+| `signup-form.test.tsx`    | 9        |
+| `message-input.test.tsx`  | 6        |
+| `room-list.test.tsx`      | 5        |
+| `room-item.test.tsx`      | 5        |
+| `use-chat-socket.test.ts` | 11       |
+| `utils.test.ts`           | 15       |
+| `api-client.test.ts`      | 13       |
+| **合計**                  | **83**   |
 
 ---
 
@@ -471,14 +388,14 @@ make generate
 
 ### Backend (`backend/.env`)
 
-| 変数名         | 説明              | デフォルト値                              |
-| -------------- | ----------------- | ----------------------------------------- |
-| `APP_ENV`      | 環境              | `development`                             |
-| `APP_LOG_LEVEL`| ログレベル        | `debug`                                   |
-| `BACKEND_PORT` | サーバーポート    | `3000`                                    |
-| `DATABASE_URL` | MySQL 接続 URL    | `mysql://chat_user:...@db:3306/chat_app`  |
-| `JWT_SECRET`   | JWT 署名キー      | （要設定）                                |
-| `JWT_EXPIRES_IN`| JWT 有効期限     | `1h`                                      |
+| 変数名           | 説明           | デフォルト値                             |
+| ---------------- | -------------- | ---------------------------------------- |
+| `APP_ENV`        | 環境           | `development`                            |
+| `APP_LOG_LEVEL`  | ログレベル     | `debug`                                  |
+| `BACKEND_PORT`   | サーバーポート | `3000`                                   |
+| `DATABASE_URL`   | MySQL 接続 URL | `mysql://chat_user:...@db:3306/chat_app` |
+| `JWT_SECRET`     | JWT 署名キー   | （要設定）                               |
+| `JWT_EXPIRES_IN` | JWT 有効期限   | `1h`                                     |
 
 ```bash
 # 例
@@ -492,12 +409,12 @@ JWT_EXPIRES_IN=1h
 
 ### Frontend (`frontend/.env`)
 
-| 変数名                      | 説明           | デフォルト値             |
-| --------------------------- | -------------- | ------------------------ |
-| `APP_ENV`                   | 環境           | `development`            |
-| `NEXT_PUBLIC_API_BASE_URL`  | API URL        | `http://backend:3000`    |
-| `NEXT_PUBLIC_WS_URL`        | WebSocket URL  | `ws://backend:3000`      |
-| `NEXT_PUBLIC_APP_VERSION`   | バージョン     | `local`                  |
+| 変数名                     | 説明          | デフォルト値          |
+| -------------------------- | ------------- | --------------------- |
+| `APP_ENV`                  | 環境          | `development`         |
+| `NEXT_PUBLIC_API_BASE_URL` | API URL       | `http://backend:3000` |
+| `NEXT_PUBLIC_WS_URL`       | WebSocket URL | `ws://backend:3000`   |
+| `NEXT_PUBLIC_APP_VERSION`  | バージョン    | `local`               |
 
 ```bash
 # 例
@@ -517,12 +434,12 @@ NEXT_PUBLIC_APP_VERSION=docker-dev
 
 **Backend Dockerfile**
 
-| ステージ  | 用途                            |
-| --------- | ------------------------------- |
-| `base`    | Node.js + Corepack 共通設定     |
-| `dev`     | 開発用（`yarn start:dev`）      |
-| `builder` | TypeScript ビルド               |
-| `runner`  | 本番起動（最小イメージ）        |
+| ステージ  | 用途                        |
+| --------- | --------------------------- |
+| `base`    | Node.js + Corepack 共通設定 |
+| `dev`     | 開発用（`yarn start:dev`）  |
+| `builder` | TypeScript ビルド           |
+| `runner`  | 本番起動（最小イメージ）    |
 
 **Frontend Dockerfile**
 
@@ -558,14 +475,14 @@ docker build -t chat-frontend:latest ./frontend
 
 ### コーディング規約
 
-| 項目               | ルール                                  |
-| ------------------ | --------------------------------------- |
-| TypeScript         | strict mode, `any` 禁止                 |
-| ファイル命名       | kebab-case (`auth.service.ts`)          |
-| コンポーネント命名 | PascalCase (`LoginForm.tsx`)            |
-| インポート順序     | 外部 → 内部 → 相対パス                  |
-| フォーマット       | Prettier（保存時自動整形）              |
-| リント             | ESLint（エラーは即修正）                |
+| 項目               | ルール                         |
+| ------------------ | ------------------------------ |
+| TypeScript         | strict mode, `any` 禁止        |
+| ファイル命名       | kebab-case (`auth.service.ts`) |
+| コンポーネント命名 | PascalCase (`LoginForm.tsx`)   |
+| インポート順序     | 外部 → 内部 → 相対パス         |
+| フォーマット       | Prettier（保存時自動整形）     |
+| リント             | ESLint（エラーは即修正）       |
 
 ### 環境変数追加手順
 
@@ -657,13 +574,13 @@ docker compose up -d frontend
 
 ## 詳細ドキュメント
 
-| ディレクトリ             | 内容                       |
-| ------------------------ | -------------------------- |
-| `docs/00_planning/`      | 設計・企画ドキュメント     |
-| `docs/10_implementation/`| 実装仕様書                 |
-| `docs/20_decisions/`     | 技術選定・ADR              |
-| `backend/README.md`      | Backend 詳細               |
-| `frontend/README.md`     | Frontend 詳細              |
+| ディレクトリ              | 内容                   |
+| ------------------------- | ---------------------- |
+| `docs/00_planning/`       | 設計・企画ドキュメント |
+| `docs/10_implementation/` | 実装仕様書             |
+| `docs/20_decisions/`      | 技術選定・ADR          |
+| `backend/README.md`       | Backend 詳細           |
+| `frontend/README.md`      | Frontend 詳細          |
 
 ---
 
