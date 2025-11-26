@@ -5,6 +5,7 @@ This is a full-stack realtime chat application built with a monorepo structure.
 ## Tech Stack
 
 ### Backend
+
 - **Framework**: NestJS
 - **Language**: TypeScript
 - **Database**: MySQL (via Prisma ORM)
@@ -12,6 +13,7 @@ This is a full-stack realtime chat application built with a monorepo structure.
 - **Realtime**: Socket.IO
 
 ### Frontend
+
 - **Framework**: Next.js
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS + shadcn/ui
@@ -26,4 +28,3 @@ This is a full-stack realtime chat application built with a monorepo structure.
 ## Getting Started
 
 See the README files in each subdirectory for specific setup instructions.
-
