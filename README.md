@@ -1,331 +1,671 @@
 # Modern Realtime Chat Application
 
-リアルタイム通信機能を備えたモダンなチャットアプリケーションです。モノレポ構造で構築されています。
+[![Node.js](https://img.shields.io/badge/Node.js-22_LTS-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-11-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+
+リアルタイム通信機能を備えたモダンなチャットアプリケーションです。
+Backend / Frontend をまとめた **モノレポ構成** で、Docker でローカル開発・本番デプロイが可能です。
+
+---
+
+## 目次
+
+- [技術スタック](#技術スタック)
+- [アーキテクチャ](#アーキテクチャ)
+- [クイックスタート](#クイックスタートdocker-compose)
+- [Makefile コマンド一覧](#makefile-コマンド一覧)
+- [Backend](#backend)
+- [Frontend](#frontend)
+- [テスト](#テスト)
+- [データベース](#データベース)
+- [環境変数](#環境変数)
+- [Docker / デプロイ](#docker--デプロイ)
+- [開発ガイドライン](#開発ガイドライン)
+- [トラブルシューティング](#トラブルシューティング)
+
+---
 
 ## 技術スタック
 
 ### Backend
 
-| 項目 | 技術 |
-|------|------|
-| フレームワーク | NestJS 11 |
-| 言語 | TypeScript 5 |
-| ランタイム | Node.js 22 |
-| ORM | Prisma 6 |
-| データベース | MySQL 8 |
-| 認証 | JWT (Passport) |
-| リアルタイム通信 | Socket.IO 4 |
-| API ドキュメント | Swagger |
-| パッケージマネージャー | Yarn 4 (Corepack) |
+| 項目                   | 技術              | 備考                     |
+| ---------------------- | ----------------- | ------------------------ |
+| フレームワーク         | NestJS 11         | モジュラーアーキテクチャ |
+| 言語                   | TypeScript 5      | strict mode              |
+| ランタイム             | Node.js 22 LTS    | Alpine ベース            |
+| ORM                    | Prisma 6          | 型安全なクエリ           |
+| データベース           | MySQL 8           | InnoDB                   |
+| 認証                   | JWT (Passport)    | Bearer Token             |
+| リアルタイム通信       | Socket.IO 4       | WebSocket + Polling      |
+| API ドキュメント       | Swagger/OpenAPI   | 自動生成                 |
+| パッケージマネージャー | Yarn 4 (Corepack) | Zero-Install 非対応      |
 
 ### Frontend
 
-| 項目 | 技術 |
-|------|------|
-| フレームワーク | Next.js 16 |
-| UI ライブラリ | React 19 |
-| 言語 | TypeScript 5 |
-| スタイリング | Tailwind CSS v4 + shadcn/ui |
-| 状態管理 | Zustand 5 |
-| データフェッチング | TanStack Query 5 |
-| フォーム | React Hook Form + Zod |
-| リアルタイム通信 | Socket.IO Client |
-| パッケージマネージャー | Yarn 4 (Corepack) |
+| 項目                   | 技術                        | 備考                |
+| ---------------------- | --------------------------- | ------------------- |
+| フレームワーク         | Next.js 16                  | App Router          |
+| UI ライブラリ          | React 19                    | Server Components   |
+| 言語                   | TypeScript 5                | strict mode         |
+| スタイリング           | Tailwind CSS v4 + shadcn/ui | CSS Variables       |
+| 状態管理               | Zustand 5                   | クライアント状態    |
+| データフェッチング     | TanStack Query 5            | サーバー状態        |
+| フォーム               | React Hook Form + Zod       | バリデーション      |
+| リアルタイム通信       | Socket.IO Client            | 自動再接続          |
+| パッケージマネージャー | Yarn 4 (Corepack)           | Zero-Install 非対応 |
 
-## プロジェクト構成
+---
+
+## アーキテクチャ
+
+### システム構成図
 
 ```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Docker Network                           │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐  │
+│  │  Frontend   │    │   Backend   │    │       MySQL         │  │
+│  │  (Next.js)  │───▶│  (NestJS)   │───▶│    (Database)       │  │
+│  │   :3001     │    │    :3000    │    │      :3307          │  │
+│  │             │◀───│             │    │                     │  │
+│  │  WebSocket  │    │  Socket.IO  │    │  chat_app_db        │  │
+│  └─────────────┘    └─────────────┘    └─────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+         │                   │
+         ▼                   ▼
+    localhost:3001      localhost:3000
+      (Browser)          (API/WS)
+```
+
+### プロジェクト構成
+
+```bash
 .
-├── backend/          # NestJS API サーバー
-│   ├── src/          # ソースコード
-│   ├── prisma/       # Prisma スキーマ・マイグレーション
-│   └── Dockerfile    # マルチステージビルド対応
-├── frontend/         # Next.js フロントエンド
-│   ├── app/          # App Router
-│   ├── components/   # UI コンポーネント
-│   ├── features/     # 機能別モジュール
-│   └── Dockerfile    # マルチステージビルド対応
-├── docs/             # プロジェクトドキュメント
-│   ├── 00_planning/      # 設計・企画ドキュメント
-│   ├── 10_implementation/ # 実装ドキュメント
-│   └── 20_decisions/     # 技術選定・決定事項
-├── docker-compose.yml
-└── Makefile          # 開発用コマンド集
+├── backend/                  # NestJS API サーバー
+│   ├── src/
+│   │   ├── auth/             # 認証モジュール
+│   │   ├── chat/             # チャット (WebSocket)
+│   │   ├── users/            # ユーザー管理
+│   │   ├── prisma/           # Prisma サービス
+│   │   ├── config/           # 環境変数 (Zod)
+│   │   └── health/           # ヘルスチェック
+│   ├── prisma/
+│   │   └── schema.prisma     # DB スキーマ
+│   └── Dockerfile            # マルチステージビルド
+│
+├── frontend/                 # Next.js フロントエンド
+│   ├── app/                  # App Router
+│   │   ├── (auth)/           # 認証ページ群
+│   │   └── (main)/           # メインアプリ
+│   ├── components/           # 共通 UI コンポーネント
+│   ├── features/             # 機能別モジュール
+│   │   ├── auth/             # 認証機能
+│   │   └── chat/             # チャット機能
+│   ├── lib/                  # ユーティリティ
+│   └── Dockerfile            # マルチステージビルド
+│
+├── docs/                     # ドキュメント
+│   ├── 00_planning/          # 設計・企画
+│   ├── 10_implementation/    # 実装仕様
+│   └── 20_decisions/         # 技術決定 (ADR)
+│
+├── docker-compose.yml        # 開発環境定義
+└── Makefile                  # 開発コマンド集
 ```
 
-## クイックスタート (Docker Compose)
+---
+
+## クイックスタート（Docker Compose）
 
 ### 前提条件
 
-- Docker Desktop または Docker Engine
-- Docker Compose v2
+- Docker Desktop または Docker Engine + Compose v2
+- Git
 
-### 1. リポジトリをクローン
-
-```bash
-git clone <repository-url>
-cd <project-directory>
-```
-
-### 2. 環境変数ファイルを準備
+### 30 秒で起動
 
 ```bash
-# Backend 用
+# 1. クローン
+git clone <repository-url> && cd <project-directory>
+
+# 2. 環境変数（デフォルト値で動作）
 cp backend/.env.example backend/.env
-
-# Frontend 用
 cp frontend/.env.example frontend/.env
+
+# 3. 起動（初回は数分かかります）
+make up
+
+# 4. マイグレーション
+make migrate
 ```
 
-> **Note**: `.env` ファイルはデフォルト値で動作するよう設定されています。
+### アクセス
 
-### 3. 開発環境を起動
+| サービス   | URL                         | 説明             |
+| ---------- | --------------------------- | ---------------- |
+| Frontend   | http://localhost:3001       | チャットアプリ   |
+| Backend    | http://localhost:3000       | REST API         |
+| Swagger UI | http://localhost:3000/api   | API ドキュメント |
+| MySQL      | localhost:3307              | DB 直接接続      |
+
+### ポート構成
+
+| サービス | ホスト | コンテナ | 用途            |
+| -------- | ------ | -------- | --------------- |
+| Frontend | 3001   | 3000     | Next.js         |
+| Backend  | 3000   | 3000     | NestJS API + WS |
+| MySQL    | 3307   | 3306     | データベース    |
+
+---
+
+## Makefile コマンド一覧
+
+`make help` で全コマンドを確認できます。
+
+### 基本操作
+
+| コマンド       | 説明                            |
+| -------------- | ------------------------------- |
+| `make up`      | 全サービス起動                  |
+| `make down`    | 全サービス停止                  |
+| `make restart` | 全サービス再起動                |
+| `make ps`      | コンテナ状態確認                |
+| `make logs`    | 全サービスのログ表示            |
+| `make clean`   | コンテナ・ボリューム削除（注意）|
+
+### ログ確認
+
+| コマンド            | 説明                |
+| ------------------- | ------------------- |
+| `make logs`         | 全サービス          |
+| `make logs-backend` | Backend のみ        |
+| `make logs-frontend`| Frontend のみ       |
+
+### データベース
+
+| コマンド        | 説明                      |
+| --------------- | ------------------------- |
+| `make migrate`  | Prisma マイグレーション   |
+| `make studio`   | Prisma Studio 起動        |
+| `make generate` | Prisma クライアント生成   |
+| `make shell-db` | MySQL CLI 接続            |
+
+### ビルド
+
+| コマンド       | 説明                   |
+| -------------- | ---------------------- |
+| `make build`   | イメージビルド         |
+| `make rebuild` | キャッシュなしリビルド |
+
+### テスト
+
+| コマンド                    | 説明                       |
+| --------------------------- | -------------------------- |
+| `make test`                 | Backend + Frontend 全実行  |
+| `make test-backend`         | Backend 単体テスト         |
+| `make test-backend-watch`   | Backend ウォッチモード     |
+| `make test-backend-coverage`| Backend カバレッジ         |
+| `make test-frontend`        | Frontend 単体テスト        |
+| `make test-frontend-watch`  | Frontend ウォッチモード    |
+| `make test-frontend-coverage`| Frontend カバレッジ       |
+
+### シェルアクセス
+
+| コマンド             | 説明                   |
+| -------------------- | ---------------------- |
+| `make shell-backend` | Backend コンテナに接続 |
+| `make shell-frontend`| Frontend コンテナに接続|
+
+---
+
+## Backend
+
+### REST API
+
+| メソッド | パス              | 説明               | 認証 |
+| -------- | ----------------- | ------------------ | ---- |
+| `POST`   | `/auth/signup`    | ユーザー登録       | 不要 |
+| `POST`   | `/auth/login`     | ログイン（JWT発行）| 不要 |
+| `GET`    | `/users/me`       | 自分のユーザー情報 | 必要 |
+| `GET`    | `/chat/rooms`     | ルーム一覧         | 必要 |
+| `POST`   | `/chat/rooms`     | ルーム作成         | 必要 |
+| `GET`    | `/chat/rooms/:id` | ルーム詳細         | 必要 |
+| `GET`    | `/health`         | ヘルスチェック     | 不要 |
+
+> 詳細は Swagger UI (http://localhost:3000/api) を参照
+
+### WebSocket イベント
+
+**Client → Server**
+
+| イベント      | ペイロード                            | 説明           |
+| ------------- | ------------------------------------- | -------------- |
+| `joinRoom`    | `{ roomId: number }`                  | ルーム参加     |
+| `leaveRoom`   | `{ roomId: number }`                  | ルーム退出     |
+| `sendMessage` | `{ roomId: number, content: string }` | メッセージ送信 |
+
+**Server → Client**
+
+| イベント         | ペイロード                                   | 説明           |
+| ---------------- | -------------------------------------------- | -------------- |
+| `roomJoined`     | `{ roomId: number }`                         | 参加完了       |
+| `roomLeft`       | `{ roomId: number }`                         | 退出完了       |
+| `messageCreated` | `{ id, roomId, userId, content, createdAt }` | 新規メッセージ |
+| `error`          | `{ message: string }`                        | エラー通知     |
+
+**接続例**
+
+```typescript
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:3000', {
+  auth: { token: `Bearer ${accessToken}` },
+});
+
+// ルーム参加
+socket.emit('joinRoom', { roomId: 1 });
+
+// メッセージ送信
+socket.emit('sendMessage', { roomId: 1, content: 'Hello!' });
+
+// メッセージ受信
+socket.on('messageCreated', (message) => {
+  console.log('New message:', message);
+});
+
+// エラーハンドリング
+socket.on('error', (err) => {
+  console.error('Socket error:', err.message);
+});
+```
+
+### Backend スクリプト
 
 ```bash
-# 全サービスを起動（初回はビルドに数分かかります）
-docker compose up -d
-
-# ログを確認
-docker compose logs -f
+yarn build            # TypeScript ビルド
+yarn start:dev        # 開発モード（ホットリロード）
+yarn start:prod       # 本番モード
+yarn test             # 単体テスト
+yarn test:watch       # テスト（ウォッチ）
+yarn test:coverage    # カバレッジレポート
+yarn lint             # ESLint
+yarn format           # Prettier
+yarn prisma:generate  # Prisma クライアント生成
+yarn prisma:migrate   # マイグレーション実行
+yarn prisma:studio    # Prisma Studio（GUI）
 ```
 
-### 4. データベースのセットアップ
+---
+
+## Frontend
+
+### Feature-based アーキテクチャ
+
+```
+features/
+├── auth/                 # 認証機能
+│   ├── api/              # API 呼び出し
+│   ├── components/       # UI コンポーネント
+│   ├── hooks/            # カスタムフック
+│   ├── schemas/          # Zod スキーマ
+│   └── types/            # 型定義
+│
+└── chat/                 # チャット機能
+    ├── components/       # UI コンポーネント
+    ├── hooks/            # カスタムフック
+    ├── store/            # Zustand ストア
+    └── types/            # 型定義
+```
+
+### 状態管理の役割分担
+
+| 種類             | 技術            | 用途                        |
+| ---------------- | --------------- | --------------------------- |
+| サーバー状態     | TanStack Query  | API データ / キャッシュ     |
+| クライアント状態 | Zustand         | UI 状態 / 選択中ルームなど  |
+| フォーム状態     | React Hook Form | 入力値 / バリデーション     |
+
+### Frontend スクリプト
 
 ```bash
-# コンテナに入ってマイグレーションを実行
-docker compose exec backend yarn prisma:migrate
+yarn dev            # 開発サーバー（:3001）
+yarn build          # 本番ビルド（standalone）
+yarn start          # 本番サーバー
+yarn lint           # ESLint
+yarn format         # Prettier
+yarn test           # Vitest 単体テスト
+yarn test:watch     # テスト（ウォッチ）
+yarn test:coverage  # カバレッジレポート
 ```
 
-### 5. アクセス
-
-| サービス | URL | 説明 |
-|----------|-----|------|
-| Frontend | http://localhost:3001 | チャットアプリ UI |
-| Backend API | http://localhost:3000 | REST API エンドポイント |
-| Swagger UI | http://localhost:3000/api | API ドキュメント |
-
-## ポート構成
-
-| サービス | ホスト側ポート | コンテナ内ポート |
-|----------|---------------|-----------------|
-| Frontend | 3001 | 3000 |
-| Backend | 3000 | 3000 |
-| MySQL | 3307 | 3306 |
-
-## よく使うコマンド
-
-### Makefile（推奨）
-
-プロジェクトルートに `Makefile` が用意されています。
-
-```bash
-make up              # 全サービスを起動
-make down            # 全サービスを停止
-make logs            # 全サービスのログを表示
-make logs-backend    # Backend のログを表示
-make logs-frontend   # Frontend のログを表示
-make migrate         # Prisma マイグレーション実行
-make studio          # Prisma Studio 起動
-make shell-backend   # Backend コンテナにシェル接続
-make shell-db        # DB に MySQL 接続
-make rebuild         # キャッシュなしでリビルド
-make clean           # コンテナ・ボリューム削除（DB データも削除）
-make help            # コマンド一覧を表示
-
-# テスト
-make test-backend           # Backend 単体テスト
-make test-backend-watch     # Backend テスト（ウォッチモード）
-make test-backend-coverage  # Backend カバレッジ
-```
-
-### Docker Compose（直接実行）
-
-```bash
-# 全サービス起動
-docker compose up -d
-
-# 全サービス停止
-docker compose down
-
-# 特定のサービスのログを確認
-docker compose logs -f backend
-docker compose logs -f frontend
-
-# コンテナを再ビルド（Dockerfile 変更時）
-docker compose up -d --build
-
-# ボリュームごと削除（DB データもクリア）
-docker compose down -v
-```
-
-### Backend（コンテナ内で実行）
-
-```bash
-# マイグレーション実行
-docker compose exec backend yarn prisma:migrate
-
-# Prisma Studio（DB GUI）
-docker compose exec backend yarn prisma:studio
-
-# リント
-docker compose exec backend yarn lint
-
-# フォーマット
-docker compose exec backend yarn format
-```
-
-### Frontend（コンテナ内で実行）
-
-```bash
-# リント
-docker compose exec frontend yarn lint
-
-# フォーマット
-docker compose exec frontend yarn format
-```
+---
 
 ## テスト
 
-### クイックスタート
-
-```bash
-# Backend テスト実行
-make test-backend
-
-# カバレッジ付き
-make test-backend-coverage
-```
-
 ### テスト環境
 
-| サービス | ツール | テスト数 |
-|----------|--------|---------|
-| Backend | Jest + @nestjs/testing | 8 |
+| サービス | ツール                              | 実行方法                |
+| -------- | ----------------------------------- | ----------------------- |
+| Backend  | Jest + @nestjs/testing              | `make test-backend`     |
+| Frontend | Vitest + React Testing Library      | `make test-frontend`    |
+
+### 全テスト実行
+
+```bash
+make test
+```
 
 ### Backend テスト
 
 ```bash
-# Docker 経由（推奨）
-make test-backend
+make test-backend           # 単体テスト
 make test-backend-watch     # ウォッチモード
-make test-backend-coverage  # カバレッジ付き
-
-# または直接実行
-docker compose exec backend yarn test
+make test-backend-coverage  # カバレッジ
 ```
 
-### Backend テストカバレッジ
+| テストファイル              | テスト数 |
+| --------------------------- | -------- |
+| `auth.service.spec.ts`      | 6        |
+| `auth.controller.spec.ts`   | 2        |
+| **合計**                    | **8**    |
 
-| カテゴリ | テストファイル | テスト数 |
-|----------|---------------|---------|
-| 認証サービス | `auth.service.spec.ts` | 6 |
-| 認証コントローラ | `auth.controller.spec.ts` | 2 |
+### Frontend テスト
 
-詳細は [Backend README](./backend/README.md#スクリプト) を参照してください。
+```bash
+make test-frontend          # 単体テスト
+make test-frontend-watch    # ウォッチモード
+make test-frontend-coverage # カバレッジ
+```
 
-## データベーススキーマ
+テストファイルはソースと同階層に `*.test.ts(x)` で配置（Co-located tests）。
+
+| テストファイル              | テスト数 |
+| --------------------------- | -------- |
+| `chat-store.test.ts`        | 11       |
+| `login-form.test.tsx`       | 8        |
+| `signup-form.test.tsx`      | 9        |
+| `message-input.test.tsx`    | 6        |
+| `room-list.test.tsx`        | 5        |
+| `room-item.test.tsx`        | 5        |
+| `use-chat-socket.test.ts`   | 11       |
+| `utils.test.ts`             | 15       |
+| `api-client.test.ts`        | 13       |
+| **合計**                    | **83**   |
+
+---
+
+## データベース
+
+### ER 図
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   User      │     │  ChatRoom   │     │   Message   │
-├─────────────┤     ├─────────────┤     ├─────────────┤
-│ id          │     │ id          │     │ id          │
-│ username    │     │ name        │     │ content     │
-│ email       │     │ createdAt   │     │ userId   →─┼──→ User
-│ password    │     └─────────────┘     │ chatRoomId→┼──→ ChatRoom
-│ createdAt   │           ↑             │ createdAt   │
-└─────────────┘           │             └─────────────┘
-       ↑                  │                    │
-       └──────────────────┴────────────────────┘
+┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
+│      User       │       │    ChatRoom     │       │     Message     │
+├─────────────────┤       ├─────────────────┤       ├─────────────────┤
+│ id (PK)         │       │ id (PK)         │       │ id (PK)         │
+│ username        │       │ name            │       │ content         │
+│ email (UNIQUE)  │       │ createdAt       │       │ createdAt       │
+│ password        │       │ updatedAt       │       │ updatedAt       │
+│ createdAt       │       └─────────────────┘       │                 │
+│ updatedAt       │               │                 │ userId (FK) ────┼──▶ User.id
+└─────────────────┘               │                 │ chatRoomId (FK) ┼──▶ ChatRoom.id
+        │                         │                 └─────────────────┘
+        │                         │                         │
+        └─────────────────────────┴─────────────────────────┘
+                              N : N 関係
 ```
+
+### テーブル定義
+
+**User**
+| カラム     | 型           | 制約                |
+| ---------- | ------------ | ------------------- |
+| id         | INT          | PK, AUTO_INCREMENT  |
+| username   | VARCHAR(255) | NOT NULL            |
+| email      | VARCHAR(255) | NOT NULL, UNIQUE    |
+| password   | VARCHAR(255) | NOT NULL (hashed)   |
+| createdAt  | DATETIME     | DEFAULT NOW()       |
+| updatedAt  | DATETIME     | ON UPDATE NOW()     |
+
+**ChatRoom**
+| カラム     | 型           | 制約                |
+| ---------- | ------------ | ------------------- |
+| id         | INT          | PK, AUTO_INCREMENT  |
+| name       | VARCHAR(255) | NOT NULL            |
+| createdAt  | DATETIME     | DEFAULT NOW()       |
+| updatedAt  | DATETIME     | ON UPDATE NOW()     |
+
+**Message**
+| カラム      | 型           | 制約                  |
+| ----------- | ------------ | --------------------- |
+| id          | INT          | PK, AUTO_INCREMENT    |
+| content     | TEXT         | NOT NULL              |
+| userId      | INT          | FK → User.id          |
+| chatRoomId  | INT          | FK → ChatRoom.id      |
+| createdAt   | DATETIME     | DEFAULT NOW()         |
+| updatedAt   | DATETIME     | ON UPDATE NOW()       |
+
+### DB 操作
+
+```bash
+# Prisma Studio（GUI）
+make studio
+
+# MySQL CLI 接続
+make shell-db
+
+# マイグレーション
+make migrate
+
+# クライアント再生成
+make generate
+```
+
+---
 
 ## 環境変数
 
-環境変数は各サービスの `.env` ファイルで管理します。
-
-```bash
-# セットアップ
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-```
-
 ### Backend (`backend/.env`)
 
-| 変数名 | 説明 | デフォルト値 |
-|--------|------|-------------|
-| `APP_ENV` | 環境（development/production） | development |
-| `APP_LOG_LEVEL` | ログレベル | debug |
-| `BACKEND_PORT` | サーバーポート | 3000 |
-| `DATABASE_URL` | MySQL 接続 URL | - |
-| `JWT_SECRET` | JWT 署名キー | - |
-| `JWT_EXPIRES_IN` | JWT 有効期限 | 1h |
+| 変数名         | 説明              | デフォルト値                              |
+| -------------- | ----------------- | ----------------------------------------- |
+| `APP_ENV`      | 環境              | `development`                             |
+| `APP_LOG_LEVEL`| ログレベル        | `debug`                                   |
+| `BACKEND_PORT` | サーバーポート    | `3000`                                    |
+| `DATABASE_URL` | MySQL 接続 URL    | `mysql://chat_user:...@db:3306/chat_app`  |
+| `JWT_SECRET`   | JWT 署名キー      | （要設定）                                |
+| `JWT_EXPIRES_IN`| JWT 有効期限     | `1h`                                      |
+
+```bash
+# 例
+APP_ENV=development
+APP_LOG_LEVEL=debug
+BACKEND_PORT=3000
+DATABASE_URL=mysql://chat_user:chat_password@db:3306/chat_app
+JWT_SECRET=your-super-secret-key-change-in-production
+JWT_EXPIRES_IN=1h
+```
 
 ### Frontend (`frontend/.env`)
 
-| 変数名 | 説明 | デフォルト値 |
-|--------|------|-------------|
-| `APP_ENV` | 環境 | development |
-| `NEXT_PUBLIC_API_BASE_URL` | API ベース URL | http://backend:3000 |
-| `NEXT_PUBLIC_WS_URL` | WebSocket URL | ws://backend:3000 |
-| `NEXT_PUBLIC_APP_VERSION` | アプリバージョン | local |
+| 変数名                      | 説明           | デフォルト値             |
+| --------------------------- | -------------- | ------------------------ |
+| `APP_ENV`                   | 環境           | `development`            |
+| `NEXT_PUBLIC_API_BASE_URL`  | API URL        | `http://backend:3000`    |
+| `NEXT_PUBLIC_WS_URL`        | WebSocket URL  | `ws://backend:3000`      |
+| `NEXT_PUBLIC_APP_VERSION`   | バージョン     | `local`                  |
 
-## 本番デプロイ
+```bash
+# 例
+APP_ENV=development
+NEXT_PUBLIC_API_BASE_URL=http://backend:3000
+NEXT_PUBLIC_WS_URL=ws://backend:3000
+NEXT_PUBLIC_APP_VERSION=docker-dev
+```
 
-### Docker イメージのビルド
+> **Note**: 環境変数は各サービスの `config/env.ts` で Zod によりバリデーションされます。
+
+---
+
+## Docker / デプロイ
+
+### マルチステージビルド
+
+**Backend Dockerfile**
+
+| ステージ  | 用途                            |
+| --------- | ------------------------------- |
+| `base`    | Node.js + Corepack 共通設定     |
+| `dev`     | 開発用（`yarn start:dev`）      |
+| `builder` | TypeScript ビルド               |
+| `runner`  | 本番起動（最小イメージ）        |
+
+**Frontend Dockerfile**
+
+| ステージ  | 用途                              |
+| --------- | --------------------------------- |
+| `deps`    | 依存関係インストール              |
+| `builder` | Next.js ビルド（standalone 出力） |
+| `runner`  | 本番起動（非 root ユーザー）      |
+
+### 本番イメージビルド
 
 ```bash
 # Backend
-docker build -t chat-backend ./backend
+docker build -t chat-backend:latest ./backend
 
 # Frontend
-docker build -t chat-frontend ./frontend
+docker build -t chat-frontend:latest ./frontend
 ```
 
-本番環境では各 Dockerfile の `runner` ステージが使用され、最適化されたイメージが生成されます。
+### 本番環境チェックリスト
 
-### 本番環境のポイント
+- [ ] `JWT_SECRET` を強力なランダム文字列に変更
+- [ ] `APP_ENV=production` に設定
+- [ ] HTTPS/WSS を使用（リバースプロキシ経由）
+- [ ] MySQL のバックアップ・レプリケーション設定
+- [ ] 環境変数は CI/CD から安全に注入
+- [ ] rate limiting の検討
+- [ ] ログの外部転送設定
 
-- `JWT_SECRET` は強力なランダム文字列を使用
-- 環境変数は CI/CD から安全に注入
-- MySQL は適切なバックアップ・レプリケーション設定
-- HTTPS/WSS を使用（リバースプロキシ設定）
+---
+
+## 開発ガイドライン
+
+### コーディング規約
+
+| 項目               | ルール                                  |
+| ------------------ | --------------------------------------- |
+| TypeScript         | strict mode, `any` 禁止                 |
+| ファイル命名       | kebab-case (`auth.service.ts`)          |
+| コンポーネント命名 | PascalCase (`LoginForm.tsx`)            |
+| インポート順序     | 外部 → 内部 → 相対パス                  |
+| フォーマット       | Prettier（保存時自動整形）              |
+| リント             | ESLint（エラーは即修正）                |
+
+### 環境変数追加手順
+
+1. `.env.example` にキーを追加
+2. `config/env.ts` のスキーマを更新
+3. `.env` に実際の値を設定
+4. コード内で `env.xxx` として参照
+
+### Git コミット規約
+
+```
+feat: 新機能追加
+fix: バグ修正
+docs: ドキュメント更新
+style: フォーマット変更（動作に影響なし）
+refactor: リファクタリング
+test: テスト追加・修正
+chore: ビルド・補助ツール変更
+```
+
+---
 
 ## トラブルシューティング
 
 ### コンテナが起動しない
 
 ```bash
-# ログを確認
+# ログ確認
 docker compose logs -f
 
-# コンテナの状態を確認
+# コンテナ状態
 docker compose ps
+
+# 完全リセット
+make clean && make up
 ```
 
-### データベース接続エラー
+### DB 接続エラー
 
 ```bash
-# DB コンテナの状態を確認
-docker compose exec db mysqladmin ping -h localhost -u root -prootpassword
-
-# DB ログを確認
+# DB ログ確認
 docker compose logs db
+
+# DB が起動しているか確認
+docker compose exec db mysqladmin ping -h localhost -u root -prootpassword
 ```
 
-### ポートが既に使用されている
+### Prisma クライアントエラー
 
 ```bash
-# 使用中のポートを確認
+# クライアント再生成
+make generate
+
+# マイグレーションやり直し
+make migrate
+```
+
+### ポートが使用中
+
+```bash
+# 使用中のプロセス確認
 lsof -i :3000
 lsof -i :3001
 lsof -i :3307
+
+# 強制終了（必要に応じて）
+kill -9 <PID>
 ```
+
+### ビルドキャッシュの問題
+
+```bash
+# キャッシュなしリビルド
+make rebuild
+
+# Docker システム全体のクリーンアップ（注意）
+docker system prune -a
+```
+
+### Frontend の環境変数が反映されない
+
+```bash
+# コンテナ再ビルド
+docker compose build frontend
+docker compose up -d frontend
+```
+
+---
 
 ## 詳細ドキュメント
 
-- [Backend README](./backend/README.md) - API 仕様、アーキテクチャ詳細
-- [Frontend README](./frontend/README.md) - コンポーネント設計、状態管理
-- [設計ドキュメント](./docs/) - 技術選定、アーキテクチャ決定
+| ディレクトリ             | 内容                       |
+| ------------------------ | -------------------------- |
+| `docs/00_planning/`      | 設計・企画ドキュメント     |
+| `docs/10_implementation/`| 実装仕様書                 |
+| `docs/20_decisions/`     | 技術選定・ADR              |
+| `backend/README.md`      | Backend 詳細               |
+| `frontend/README.md`     | Frontend 詳細              |
+
+---
 
 ## ライセンス
 
