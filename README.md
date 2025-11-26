@@ -131,6 +131,11 @@ make shell-db        # DB に MySQL 接続
 make rebuild         # キャッシュなしでリビルド
 make clean           # コンテナ・ボリューム削除（DB データも削除）
 make help            # コマンド一覧を表示
+
+# テスト
+make test-backend           # Backend 単体テスト
+make test-backend-watch     # Backend テスト（ウォッチモード）
+make test-backend-coverage  # Backend カバレッジ
 ```
 
 ### Docker Compose（直接実行）
@@ -178,6 +183,45 @@ docker compose exec frontend yarn lint
 # フォーマット
 docker compose exec frontend yarn format
 ```
+
+## テスト
+
+### クイックスタート
+
+```bash
+# Backend テスト実行
+make test-backend
+
+# カバレッジ付き
+make test-backend-coverage
+```
+
+### テスト環境
+
+| サービス | ツール | テスト数 |
+|----------|--------|---------|
+| Backend | Jest + @nestjs/testing | 8 |
+
+### Backend テスト
+
+```bash
+# Docker 経由（推奨）
+make test-backend
+make test-backend-watch     # ウォッチモード
+make test-backend-coverage  # カバレッジ付き
+
+# または直接実行
+docker compose exec backend yarn test
+```
+
+### Backend テストカバレッジ
+
+| カテゴリ | テストファイル | テスト数 |
+|----------|---------------|---------|
+| 認証サービス | `auth.service.spec.ts` | 6 |
+| 認証コントローラ | `auth.controller.spec.ts` | 2 |
+
+詳細は [Backend README](./backend/README.md#スクリプト) を参照してください。
 
 ## データベーススキーマ
 

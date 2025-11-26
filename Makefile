@@ -4,7 +4,9 @@
 
 .PHONY: up down restart logs logs-backend logs-frontend \
         migrate studio shell-backend shell-frontend \
-        build rebuild clean ps
+        build rebuild clean ps \
+        test test-backend test-backend-watch test-backend-coverage \
+        test-frontend test-frontend-watch test-frontend-coverage
 
 # --------------------------------------------
 # 基本操作
@@ -91,6 +93,42 @@ clean:
 	docker compose down -v
 
 # --------------------------------------------
+# テスト
+# --------------------------------------------
+
+## 全テスト実行（Backend + Frontend）
+test:
+	@echo "=== Running Backend Tests ==="
+	docker compose exec backend yarn test
+	@echo ""
+	@echo "=== Running Frontend Tests ==="
+	docker compose exec frontend yarn test
+
+## Backend 単体テスト実行
+test-backend:
+	docker compose exec backend yarn test
+
+## Backend テスト（ウォッチモード）
+test-backend-watch:
+	docker compose exec backend yarn test:watch
+
+## Backend テスト（カバレッジ付き）
+test-backend-coverage:
+	docker compose exec backend yarn test:coverage
+
+## Frontend 単体テスト実行
+test-frontend:
+	docker compose exec frontend yarn test
+
+## Frontend テスト（ウォッチモード）
+test-frontend-watch:
+	docker compose exec frontend yarn test:watch
+
+## Frontend テスト（カバレッジ付き）
+test-frontend-coverage:
+	docker compose exec frontend yarn test:coverage
+
+# --------------------------------------------
 # ヘルプ
 # --------------------------------------------
 
@@ -123,3 +161,12 @@ help:
 	@echo "  build          イメージをビルド"
 	@echo "  rebuild        キャッシュなしでイメージをリビルド"
 	@echo "  clean          コンテナ・ボリュームを削除（DB データも削除）"
+	@echo ""
+	@echo "テスト:"
+	@echo "  test                   全テスト実行（Backend + Frontend）"
+	@echo "  test-backend           Backend 単体テスト実行"
+	@echo "  test-backend-watch     Backend テスト（ウォッチモード）"
+	@echo "  test-backend-coverage  Backend テスト（カバレッジ付き）"
+	@echo "  test-frontend          Frontend 単体テスト実行"
+	@echo "  test-frontend-watch    Frontend テスト（ウォッチモード）"
+	@echo "  test-frontend-coverage Frontend テスト（カバレッジ付き）"
