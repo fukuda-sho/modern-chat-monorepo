@@ -3,7 +3,8 @@
 # ============================================
 
 .PHONY: up down restart logs logs-backend logs-frontend \
-        migrate studio generate push shell-backend shell-frontend shell-db \
+        migrate migrate-deploy migrate-status migrate-reset studio generate push \
+        shell-backend shell-frontend shell-db \
         build rebuild clean ps \
         test test-backend test-backend-watch test-backend-coverage \
         test-frontend test-frontend-watch test-frontend-coverage help
@@ -48,9 +49,21 @@ logs-frontend:
 # データベース操作
 # --------------------------------------------
 
-## Prisma マイグレーション実行
+## Prisma マイグレーション実行（開発用）
 migrate:
 	docker compose exec backend yarn prisma:migrate
+
+## Prisma マイグレーション適用（本番用・対話なし）
+migrate-deploy:
+	docker compose exec backend yarn prisma:migrate:deploy
+
+## Prisma マイグレーション状態確認
+migrate-status:
+	docker compose exec backend yarn prisma:migrate:status
+
+## Prisma データベースリセット（全データ削除）
+migrate-reset:
+	docker compose exec backend yarn prisma:migrate:reset
 
 ## Prisma Studio 起動
 studio:
@@ -60,7 +73,7 @@ studio:
 generate:
 	docker compose exec backend yarn prisma:generate
 
-## Prisma スキーマをDBに直接反映（開発用・マイグレーション不要）
+## Prisma スキーマをDBに直接反映（プロトタイプ用・マイグレーション不要）
 push:
 	docker compose exec backend yarn prisma:push
 
@@ -152,8 +165,11 @@ help:
 	@echo "  logs-frontend  Frontend のログを表示"
 	@echo ""
 	@echo "データベース操作:"
-	@echo "  migrate        Prisma マイグレーション実行"
-	@echo "  push           Prisma スキーマを直接反映（開発用）"
+	@echo "  migrate        Prisma マイグレーション実行（開発用）"
+	@echo "  migrate-deploy Prisma マイグレーション適用（本番用）"
+	@echo "  migrate-status Prisma マイグレーション状態確認"
+	@echo "  migrate-reset  Prisma データベースリセット（注意）"
+	@echo "  push           Prisma スキーマを直接反映（プロトタイプ用）"
 	@echo "  studio         Prisma Studio 起動"
 	@echo "  generate       Prisma クライアント生成"
 	@echo ""
