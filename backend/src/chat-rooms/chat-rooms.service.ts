@@ -6,7 +6,7 @@
 import { Injectable, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateChatRoomDto } from './dto';
-import { ChatRoom } from '@prisma/client';
+import { ChatRoom, MemberRole, ChannelType } from '@prisma/client';
 
 /**
  * チャットルームサービスクラス
@@ -37,11 +37,19 @@ export class ChatRoomsService {
       throw new ConflictException('このルーム名は既に使用されています');
     }
 
-    // チャットルームを作成
+    // チャットルームを作成し、作成者をオーナーとして追加
     return this.prisma.chatRoom.create({
       data: {
         name: createChatRoomDto.name,
+        description: createChatRoomDto.description,
+        type: createChatRoomDto.type || ChannelType.PUBLIC,
         createdByUserId: userId,
+        members: {
+          create: {
+            userId,
+            role: MemberRole.OWNER,
+          },
+        },
       },
     });
   }

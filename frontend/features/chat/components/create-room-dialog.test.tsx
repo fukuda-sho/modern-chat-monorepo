@@ -22,7 +22,8 @@ vi.mock('next/navigation', () => ({
 // API のモック
 const mockCreateChatRoom = vi.fn();
 vi.mock('../api/chat-rooms-api', () => ({
-  createChatRoom: (name: string) => mockCreateChatRoom(name),
+  createChatRoom: (params: { name: string; description?: string }) =>
+    mockCreateChatRoom(params),
 }));
 
 /**
@@ -70,14 +71,14 @@ describe('CreateRoomDialog', () => {
 
     await user.click(screen.getByRole('button', { name: '新規ルーム作成' }));
 
-    expect(screen.getByText('新しいルームを作成')).toBeInTheDocument();
-    expect(screen.getByLabelText('ルーム名')).toBeInTheDocument();
+    expect(screen.getByText('新しいチャンネルを作成')).toBeInTheDocument();
+    expect(screen.getByLabelText('チャンネル名')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: '作成する' })
     ).toBeInTheDocument();
   });
 
-  it('ルーム名を入力して作成ボタンを押すと createChatRoom が呼ばれる', async () => {
+  it('チャンネル名を入力して作成ボタンを押すと createChatRoom が呼ばれる', async () => {
     const user = userEvent.setup();
     const { Wrapper } = createTestWrapper();
 
@@ -94,18 +95,18 @@ describe('CreateRoomDialog', () => {
     // ダイアログを開く
     await user.click(screen.getByRole('button', { name: '新規ルーム作成' }));
 
-    // ルーム名を入力
-    await user.type(screen.getByLabelText('ルーム名'), 'test-room');
+    // チャンネル名を入力
+    await user.type(screen.getByLabelText('チャンネル名'), 'test-room');
 
     // 作成ボタンをクリック
     await user.click(screen.getByRole('button', { name: '作成する' }));
 
     await waitFor(() => {
-      expect(mockCreateChatRoom).toHaveBeenCalledWith('test-room');
+      expect(mockCreateChatRoom).toHaveBeenCalledWith({ name: 'test-room' });
     });
   });
 
-  it('ルーム作成成功時に /chat/<roomId> へ遷移する', async () => {
+  it('チャンネル作成成功時に /chat/<roomId> へ遷移する', async () => {
     const user = userEvent.setup();
     const { Wrapper } = createTestWrapper();
 
@@ -120,7 +121,7 @@ describe('CreateRoomDialog', () => {
     render(<CreateRoomDialog />, { wrapper: Wrapper });
 
     await user.click(screen.getByRole('button', { name: '新規ルーム作成' }));
-    await user.type(screen.getByLabelText('ルーム名'), 'new-room');
+    await user.type(screen.getByLabelText('チャンネル名'), 'new-room');
     await user.click(screen.getByRole('button', { name: '作成する' }));
 
     await waitFor(() => {
@@ -128,7 +129,7 @@ describe('CreateRoomDialog', () => {
     });
   });
 
-  it('ルーム作成成功時にキャッシュが更新される', async () => {
+  it('チャンネル作成成功時にキャッシュが無効化される', async () => {
     const user = userEvent.setup();
     const { Wrapper, queryClient } = createTestWrapper();
 
@@ -149,14 +150,17 @@ describe('CreateRoomDialog', () => {
     render(<CreateRoomDialog />, { wrapper: Wrapper });
 
     await user.click(screen.getByRole('button', { name: '新規ルーム作成' }));
-    await user.type(screen.getByLabelText('ルーム名'), 'new-room');
+    await user.type(screen.getByLabelText('チャンネル名'), 'new-room');
     await user.click(screen.getByRole('button', { name: '作成する' }));
 
+    // 作成成功後、キャッシュが無効化される（invalidateQueries を使用）
     await waitFor(() => {
-      const cachedRooms = queryClient.getQueryData<ChatRoom[]>(CHAT_ROOMS_QUERY_KEY);
-      expect(cachedRooms).toHaveLength(2);
-      expect(cachedRooms?.[1]).toEqual(mockRoom);
+      expect(mockPush).toHaveBeenCalledWith('/chat/42');
     });
+
+    // キャッシュが無効化されていることを確認（stale になっている）
+    const queryState = queryClient.getQueryState(CHAT_ROOMS_QUERY_KEY);
+    expect(queryState?.isInvalidated).toBe(true);
   });
 
   it('空文字の場合は mutation が呼ばれない', async () => {
@@ -182,7 +186,7 @@ describe('CreateRoomDialog', () => {
     await user.click(screen.getByRole('button', { name: '新規ルーム作成' }));
 
     // 空白のみを入力
-    await user.type(screen.getByLabelText('ルーム名'), '   ');
+    await user.type(screen.getByLabelText('チャンネル名'), '   ');
     await user.click(screen.getByRole('button', { name: '作成する' }));
 
     expect(mockCreateChatRoom).not.toHaveBeenCalled();
@@ -203,11 +207,11 @@ describe('CreateRoomDialog', () => {
     render(<CreateRoomDialog />, { wrapper: Wrapper });
 
     await user.click(screen.getByRole('button', { name: '新規ルーム作成' }));
-    await user.type(screen.getByLabelText('ルーム名'), '  trimmed-room  ');
+    await user.type(screen.getByLabelText('チャンネル名'), '  trimmed-room  ');
     await user.click(screen.getByRole('button', { name: '作成する' }));
 
     await waitFor(() => {
-      expect(mockCreateChatRoom).toHaveBeenCalledWith('trimmed-room');
+      expect(mockCreateChatRoom).toHaveBeenCalledWith({ name: 'trimmed-room' });
     });
   });
 
@@ -225,7 +229,7 @@ describe('CreateRoomDialog', () => {
     render(<CreateRoomDialog />, { wrapper: Wrapper });
 
     await user.click(screen.getByRole('button', { name: '新規ルーム作成' }));
-    await user.type(screen.getByLabelText('ルーム名'), 'test-room');
+    await user.type(screen.getByLabelText('チャンネル名'), 'test-room');
     await user.click(screen.getByRole('button', { name: '作成する' }));
 
     // ローディング状態を確認
@@ -258,7 +262,7 @@ describe('CreateRoomDialog', () => {
     render(<CreateRoomDialog />, { wrapper: Wrapper });
 
     await user.click(screen.getByRole('button', { name: '新規ルーム作成' }));
-    await user.type(screen.getByLabelText('ルーム名'), 'test-room');
+    await user.type(screen.getByLabelText('チャンネル名'), 'test-room');
     await user.click(screen.getByRole('button', { name: '作成する' }));
 
     // 作成完了を待つ
@@ -270,7 +274,7 @@ describe('CreateRoomDialog', () => {
     await user.click(screen.getByRole('button', { name: '新規ルーム作成' }));
 
     // 入力がリセットされていることを確認
-    const input = screen.getByLabelText('ルーム名') as HTMLInputElement;
+    const input = screen.getByLabelText('チャンネル名') as HTMLInputElement;
     expect(input.value).toBe('');
   });
 });

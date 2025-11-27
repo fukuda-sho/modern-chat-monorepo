@@ -6,6 +6,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';
 import { ChatRoomsService } from './chat-rooms.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ChannelType, MemberRole } from '@prisma/client';
 
 describe('ChatRoomsService', () => {
   let service: ChatRoomsService;
@@ -45,6 +46,8 @@ describe('ChatRoomsService', () => {
       const createdRoom = {
         id: 1,
         name: createDto.name,
+        description: null,
+        type: ChannelType.PUBLIC,
         createdByUserId: userId,
         createdAt: new Date(),
       };
@@ -60,7 +63,81 @@ describe('ChatRoomsService', () => {
       expect(prisma.chatRoom.create).toHaveBeenCalledWith({
         data: {
           name: createDto.name,
+          description: undefined,
+          type: ChannelType.PUBLIC,
           createdByUserId: userId,
+          members: {
+            create: {
+              userId,
+              role: MemberRole.OWNER,
+            },
+          },
+        },
+      });
+      expect(result).toEqual(createdRoom);
+    });
+
+    it('説明付きでチャットルームを作成できる', async () => {
+      const createDtoWithDesc = { name: 'general', description: 'General discussion' };
+      const createdRoom = {
+        id: 1,
+        name: createDtoWithDesc.name,
+        description: createDtoWithDesc.description,
+        type: ChannelType.PUBLIC,
+        createdByUserId: userId,
+        createdAt: new Date(),
+      };
+
+      mockPrismaService.chatRoom.findUnique.mockResolvedValue(null);
+      mockPrismaService.chatRoom.create.mockResolvedValue(createdRoom);
+
+      const result = await service.create(createDtoWithDesc, userId);
+
+      expect(prisma.chatRoom.create).toHaveBeenCalledWith({
+        data: {
+          name: createDtoWithDesc.name,
+          description: createDtoWithDesc.description,
+          type: ChannelType.PUBLIC,
+          createdByUserId: userId,
+          members: {
+            create: {
+              userId,
+              role: MemberRole.OWNER,
+            },
+          },
+        },
+      });
+      expect(result).toEqual(createdRoom);
+    });
+
+    it('プライベートチャンネルを作成できる', async () => {
+      const createDtoPrivate = { name: 'private-channel', type: ChannelType.PRIVATE };
+      const createdRoom = {
+        id: 1,
+        name: createDtoPrivate.name,
+        description: null,
+        type: ChannelType.PRIVATE,
+        createdByUserId: userId,
+        createdAt: new Date(),
+      };
+
+      mockPrismaService.chatRoom.findUnique.mockResolvedValue(null);
+      mockPrismaService.chatRoom.create.mockResolvedValue(createdRoom);
+
+      const result = await service.create(createDtoPrivate, userId);
+
+      expect(prisma.chatRoom.create).toHaveBeenCalledWith({
+        data: {
+          name: createDtoPrivate.name,
+          description: undefined,
+          type: ChannelType.PRIVATE,
+          createdByUserId: userId,
+          members: {
+            create: {
+              userId,
+              role: MemberRole.OWNER,
+            },
+          },
         },
       });
       expect(result).toEqual(createdRoom);

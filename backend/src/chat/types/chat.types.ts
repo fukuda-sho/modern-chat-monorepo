@@ -176,6 +176,36 @@ export interface UserTypingPayload {
 }
 
 // ========================================
+// メンバーシップ関連
+// ========================================
+
+/**
+ * メンバー参加通知ペイロード
+ */
+export interface MemberJoinedPayload {
+  /** ルーム ID */
+  roomId: number;
+  /** 参加したユーザーの ID */
+  userId: number;
+  /** ユーザー名 */
+  username: string;
+}
+
+/**
+ * メンバー退出通知ペイロード
+ */
+export interface MemberLeftPayload {
+  /** ルーム ID */
+  roomId: number;
+  /** 退出したユーザーの ID */
+  userId: number;
+  /** ユーザー名 */
+  username: string;
+  /** キックされた場合は true */
+  kicked?: boolean;
+}
+
+// ========================================
 // Socket イベント名定義
 // ========================================
 
@@ -203,4 +233,6 @@ export const ServerEvents = {
   USER_OFFLINE: 'userOffline',
   ONLINE_USERS_LIST: 'onlineUsersList',
   USER_TYPING: 'userTyping',
+  MEMBER_JOINED: 'memberJoined',
+  MEMBER_LEFT: 'memberLeft',
 } as const;

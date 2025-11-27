@@ -73,6 +73,30 @@ export class NotFoundResponseDto {
 }
 
 /**
+ * 権限エラーレスポンス DTO
+ * @description 403 Forbidden 時のレスポンス形式
+ */
+export class ForbiddenResponseDto {
+  @ApiProperty({
+    example: 403,
+    description: 'HTTP ステータスコード',
+  })
+  statusCode: number;
+
+  @ApiProperty({
+    example: 'You do not have permission to perform this action',
+    description: 'エラーメッセージ',
+  })
+  message: string;
+
+  @ApiProperty({
+    example: 'Forbidden',
+    description: 'エラー種別',
+  })
+  error: string;
+}
+
+/**
  * 競合エラーレスポンス DTO
  * @description 409 Conflict 時のレスポンス形式
  */

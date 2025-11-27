@@ -18,6 +18,28 @@ export interface Room {
   name: string;
 }
 
+// ========================================
+// チャンネル関連
+// ========================================
+
+/**
+ * チャンネルタイプ
+ */
+export type ChannelType = 'PUBLIC' | 'PRIVATE' | 'DM';
+
+/**
+ * メンバーの役割
+ */
+export type MemberRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+
+/**
+ * チャンネルメンバーシップ情報
+ */
+export interface ChannelMembership {
+  role: MemberRole;
+  isStarred: boolean;
+}
+
 /**
  * API から取得するチャットルーム（詳細情報付き）
  */
@@ -25,7 +47,28 @@ export interface ChatRoom {
   id: number;
   name: string;
   createdAt: string;
-  createdByUserId: number;
+  createdByUserId: number | null;
+  type: ChannelType;
+  description?: string | null;
+  membership?: ChannelMembership | null;
+  memberCount?: number;
+}
+
+/**
+ * チャンネルメンバー情報
+ */
+export interface ChannelMember {
+  id: number;
+  userId: number;
+  chatRoomId: number;
+  role: MemberRole;
+  isStarred: boolean;
+  joinedAt: string;
+  user: {
+    id: number;
+    username: string;
+    email: string;
+  };
 }
 
 export type ConnectionStatus =

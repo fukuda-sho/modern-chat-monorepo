@@ -7,6 +7,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ChatGateway } from './chat.gateway';
 import { WsJwtAuthGuard } from './guards/ws-jwt-auth.guard';
+import { ChatRoomsModule } from '../chat-rooms/chat-rooms.module';
 
 /**
  * Chat モジュールクラス
@@ -20,6 +21,7 @@ import { WsJwtAuthGuard } from './guards/ws-jwt-auth.guard';
         expiresIn: '1h',
       },
     }),
+    ChatRoomsModule,
   ],
   providers: [ChatGateway, WsJwtAuthGuard],
 })

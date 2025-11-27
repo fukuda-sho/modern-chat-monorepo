@@ -3,8 +3,17 @@
  * @description POST /chat-rooms リクエストのバリデーション用 DTO
  */
 
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, MaxLength, MinLength, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsString,
+  IsNotEmpty,
+  MaxLength,
+  MinLength,
+  Matches,
+  IsOptional,
+  IsEnum,
+} from 'class-validator';
+import { ChannelType } from '@prisma/client';
 
 /**
  * チャットルーム作成リクエスト DTO
@@ -25,4 +34,24 @@ export class CreateChatRoomDto {
     message: 'ルーム名は英数字、ハイフン、アンダースコアのみ使用可能です',
   })
   name: string;
+
+  @ApiPropertyOptional({
+    description: 'チャンネルの説明',
+    example: 'General discussion channel',
+    maxLength: 500,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: '説明は500文字以内で入力してください' })
+  description?: string;
+
+  @ApiPropertyOptional({
+    description: 'チャンネルタイプ',
+    enum: ChannelType,
+    example: ChannelType.PUBLIC,
+    default: ChannelType.PUBLIC,
+  })
+  @IsOptional()
+  @IsEnum(ChannelType, { message: '無効なチャンネルタイプです' })
+  type?: ChannelType;
 }

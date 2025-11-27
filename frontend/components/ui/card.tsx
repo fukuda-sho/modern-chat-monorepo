@@ -44,7 +44,12 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>): React
   );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
+/**
+ * カードタイトルコンポーネント
+ * @param props - div の props
+ * @returns カードタイトルの JSX 要素
+ */
+function CardTitle({ className, ...props }: React.ComponentProps<'div'>): React.JSX.Element {
   return (
     <div
       data-slot="card-title"
@@ -54,7 +59,12 @@ function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function CardDescription({ className, ...props }: React.ComponentProps<'div'>) {
+/**
+ * カード説明文コンポーネント
+ * @param props - div の props
+ * @returns カード説明文の JSX 要素
+ */
+function CardDescription({ className, ...props }: React.ComponentProps<'div'>): React.JSX.Element {
   return (
     <div
       data-slot="card-description"
@@ -64,7 +74,12 @@ function CardDescription({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
+/**
+ * カードアクションコンポーネント
+ * @param props - div の props
+ * @returns カードアクションの JSX 要素
+ */
+function CardAction({ className, ...props }: React.ComponentProps<'div'>): React.JSX.Element {
   return (
     <div
       data-slot="card-action"
@@ -77,7 +92,12 @@ function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function CardContent({ className, ...props }: React.ComponentProps<'div'>) {
+/**
+ * カードコンテンツコンポーネント
+ * @param props - div の props
+ * @returns カードコンテンツの JSX 要素
+ */
+function CardContent({ className, ...props }: React.ComponentProps<'div'>): React.JSX.Element {
   return (
     <div
       data-slot="card-content"
@@ -87,7 +107,12 @@ function CardContent({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
+/**
+ * カードフッターコンポーネント
+ * @param props - div の props
+ * @returns カードフッターの JSX 要素
+ */
+function CardFooter({ className, ...props }: React.ComponentProps<'div'>): React.JSX.Element {
   return (
     <div
       data-slot="card-footer"

@@ -16,17 +16,50 @@ export {
   CreateRoomDialog,
   CHAT_ROOMS_QUERY_KEY,
 } from './components/create-room-dialog';
+export { SidebarAccordion } from './components/sidebar-accordion';
+export { SidebarSection } from './components/sidebar-section';
+export { ChannelItem } from './components/channel-item';
+export { BrowseChannelsDialog } from './components/browse-channels-dialog';
 
 // Hooks
 export { useChatSocket } from './hooks/use-chat-socket';
 export { useMessages } from './hooks/use-messages';
 export { useScrollToBottom } from './hooks/use-scroll-to-bottom';
+export {
+  useMyChannels,
+  useStarredChannels,
+  useBrowseChannels,
+  useChannel,
+  useChannelMembers,
+  useJoinChannel,
+  useLeaveChannel,
+  useToggleStar,
+  useCreateChannel,
+  useCategorizedChannels,
+  channelKeys,
+} from './hooks/use-channels';
 
 // Store
 export { useChatStore } from './store/chat-store';
+export {
+  useSidebarStore,
+  type SidebarSection as SidebarSectionType,
+} from './store/sidebar-store';
 
 // API
-export { fetchChatRooms, fetchChatRoom, createChatRoom } from './api/chat-rooms-api';
+export {
+  fetchChatRooms,
+  fetchChatRoom,
+  createChatRoom,
+  fetchMyChannels,
+  fetchBrowseChannels,
+  fetchChannelMembers,
+  joinChannel,
+  leaveChannel,
+  toggleChannelStar,
+  inviteMembers,
+  kickMember,
+} from './api/chat-rooms-api';
 
 // Types
 export type {
