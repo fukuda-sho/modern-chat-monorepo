@@ -16,6 +16,7 @@ services:
       - '3307:3306'
     volumes:
       - db_data:/var/lib/mysql
+      - ./docker/mysql/initdb.d:/docker-entrypoint-initdb.d:ro
     networks:
       - chat_network
     healthcheck:
