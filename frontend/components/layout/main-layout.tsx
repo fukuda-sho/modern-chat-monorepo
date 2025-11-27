@@ -1,5 +1,8 @@
 /**
- * メインレイアウトコンポーネント
+ * @fileoverview メインレイアウトコンポーネント
+ * @description 認証済みユーザー向けのメインレイアウト
+ * ヘッダー、サイドバー、メインコンテンツエリアを統括
+ * モバイル対応のレスポンシブサイドバーを提供
  */
 
 'use client';
@@ -9,11 +12,23 @@ import { Header } from './header';
 import { Sidebar } from './sidebar';
 import { cn } from '@/lib/utils';
 
-interface MainLayoutProps {
+/** メインレイアウトの Props 型 */
+type MainLayoutProps = {
+  /** メインコンテンツエリアに表示する子コンテンツ */
   children: React.ReactNode;
-}
+};
 
-export function MainLayout({ children }: MainLayoutProps) {
+/**
+ * メインレイアウトコンポーネント
+ * クライアントコンポーネントとして以下の機能を提供:
+ * - 上部にヘッダー、左にサイドバー、右にメインコンテンツの3カラム構成
+ * - モバイル時はサイドバーをスライドイン/アウト（オーバーレイ付き）
+ * - デスクトップ時はサイドバーを常時表示
+ *
+ * @param props - メインレイアウト用 props
+ * @returns メインレイアウトの JSX 要素
+ */
+export function MainLayout({ children }: MainLayoutProps): React.JSX.Element {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (

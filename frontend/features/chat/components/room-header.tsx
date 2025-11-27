@@ -1,5 +1,7 @@
 /**
- * ルームヘッダーコンポーネント
+ * @fileoverview ルームヘッダーコンポーネント
+ * @description チャットルーム上部に表示するヘッダー
+ * ルーム名、接続状態インジケーター、戻るボタン（モバイル）を表示
  */
 
 'use client';
@@ -10,12 +12,26 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useChatStore } from '../store/chat-store';
 
-interface RoomHeaderProps {
+/** ルームヘッダーの Props 型 */
+type RoomHeaderProps = {
+  /** 現在のルーム ID */
   roomId: number;
+  /** ルーム名（指定がない場合は "Room {id}" を表示） */
   roomName?: string;
-}
+};
 
-export function RoomHeader({ roomId, roomName }: RoomHeaderProps) {
+/**
+ * ルームヘッダーコンポーネント
+ * クライアントコンポーネントとして以下の機能を提供:
+ * - 接続状態を色で表示（緑: 接続中、黄: 接続処理中、赤: 切断/エラー）
+ * - ルーム名の表示
+ * - モバイル時は戻るボタンを表示（/chat へ遷移）
+ * - 参加人数バッジ（現在は -- で固定表示）
+ *
+ * @param props - ルームヘッダー用 props
+ * @returns ルームヘッダーの JSX 要素
+ */
+export function RoomHeader({ roomId, roomName }: RoomHeaderProps): React.JSX.Element {
   const connectionStatus = useChatStore((state) => state.connectionStatus);
 
   const getStatusColor = () => {

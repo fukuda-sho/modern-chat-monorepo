@@ -1,5 +1,7 @@
 /**
- * チャットルームコンテナコンポーネント
+ * @fileoverview チャットルームコンテナコンポーネント
+ * @description WebSocket 接続管理とメッセージ表示を統括するコンテナ
+ * ルームへの参加/退出、メッセージ送受信、接続状態表示を担当
  */
 
 'use client';
@@ -11,16 +13,25 @@ import { RoomHeader } from './room-header';
 import { MessageList } from './message-list';
 import { MessageInput } from './message-input';
 
-interface ChatRoomProps {
+/** チャットルームの Props 型 */
+type ChatRoomProps = {
+  /** 表示するルームの ID */
   roomId: number;
+  /** ルーム名（指定がない場合は "Room {id}" を表示） */
   roomName?: string;
-}
+};
 
 /**
- * チャットルームコンテナ
- * WebSocket接続管理とメッセージ表示を統括
+ * チャットルームコンテナコンポーネント
+ * クライアントコンポーネントとして以下の機能を提供:
+ * - WebSocket でのルーム参加/退出管理（roomId 変更時に自動切り替え）
+ * - リアルタイムメッセージ送受信
+ * - 接続状態に応じた UI 表示（接続中/エラー）
+ *
+ * @param props - チャットルーム用 props
+ * @returns チャットルームの JSX 要素
  */
-export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
+export function ChatRoom({ roomId, roomName }: ChatRoomProps): React.JSX.Element {
   const { joinRoom, leaveRoom, sendMessage, isConnected, connectionStatus } =
     useChatSocket();
   const messages = useMessages(roomId);

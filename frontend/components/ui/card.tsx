@@ -1,8 +1,19 @@
+/**
+ * @fileoverview カードコンポーネント
+ * @description コンテンツをグループ化して表示するカード
+ * Card/CardHeader/CardTitle/CardDescription/CardContent/CardFooter で構成
+ */
+
 import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
-function Card({ className, ...props }: React.ComponentProps<'div'>) {
+/**
+ * カードコンテナコンポーネント
+ * @param props - div の props
+ * @returns カードコンテナの JSX 要素
+ */
+function Card({ className, ...props }: React.ComponentProps<'div'>): React.JSX.Element {
   return (
     <div
       data-slot="card"
@@ -15,7 +26,12 @@ function Card({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
+/**
+ * カードヘッダーコンポーネント
+ * @param props - div の props
+ * @returns カードヘッダーの JSX 要素
+ */
+function CardHeader({ className, ...props }: React.ComponentProps<'div'>): React.JSX.Element {
   return (
     <div
       data-slot="card-header"

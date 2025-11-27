@@ -1,5 +1,7 @@
 /**
- * ログインフォームコンポーネント
+ * @fileoverview ログインフォームコンポーネント
+ * @description メールアドレスとパスワードによるログインフォーム
+ * react-hook-form + Zod でバリデーション、useLogin フックで API 呼び出し
  */
 
 'use client';
@@ -15,7 +17,17 @@ import { loginSchema, type LoginFormData } from '../schemas/login-schema';
 import { useLogin } from '../hooks/use-login';
 import { ApiClientError } from '@/lib/api-client';
 
-export function LoginForm() {
+/**
+ * ログインフォームコンポーネント
+ * クライアントコンポーネントとして以下の機能を提供:
+ * - メールアドレス・パスワード入力フィールド
+ * - Zod スキーマによるリアルタイムバリデーション
+ * - ログイン API 呼び出しとエラーハンドリング
+ * - ログイン成功時は /chat へリダイレクト
+ *
+ * @returns ログインフォームの JSX 要素
+ */
+export function LoginForm(): React.JSX.Element {
   const router = useRouter();
   const { mutate: login, isPending, error } = useLogin();
 

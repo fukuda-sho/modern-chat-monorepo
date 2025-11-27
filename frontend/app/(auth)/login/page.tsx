@@ -1,11 +1,19 @@
 /**
- * ログインページ
+ * @fileoverview ログインページ
+ * @description ユーザーがアカウントにログインするためのページ
  */
 
 import Link from 'next/link';
 import { LoginForm, AuthCard } from '@/features/auth';
 
-export default function LoginPage() {
+/**
+ * ログインページコンポーネント
+ * メールアドレスとパスワードによるログインフォームを表示する
+ * サインアップページへのリンクも提供
+ *
+ * @returns ログインページの JSX 要素
+ */
+export default function LoginPage(): React.JSX.Element {
   return (
     <AuthCard title="Chat App" description="アカウントにログイン">
       <LoginForm />

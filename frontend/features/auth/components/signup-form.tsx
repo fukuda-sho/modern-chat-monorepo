@@ -1,5 +1,7 @@
 /**
- * サインアップフォームコンポーネント
+ * @fileoverview サインアップフォームコンポーネント
+ * @description 新規ユーザー登録用のフォーム
+ * react-hook-form + Zod でバリデーション、useSignup フックで API 呼び出し
  */
 
 'use client';
@@ -15,7 +17,17 @@ import { signupSchema, type SignupFormData } from '../schemas/signup-schema';
 import { useSignup } from '../hooks/use-signup';
 import { ApiClientError } from '@/lib/api-client';
 
-export function SignupForm() {
+/**
+ * サインアップフォームコンポーネント
+ * クライアントコンポーネントとして以下の機能を提供:
+ * - ユーザー名・メールアドレス・パスワード・確認パスワード入力フィールド
+ * - Zod スキーマによるリアルタイムバリデーション（パスワード一致確認含む）
+ * - サインアップ API 呼び出しとエラーハンドリング（重複メール検知など）
+ * - 登録成功時は /login?registered=true へリダイレクト
+ *
+ * @returns サインアップフォームの JSX 要素
+ */
+export function SignupForm(): React.JSX.Element {
   const router = useRouter();
   const { mutate: signup, isPending, error } = useSignup();
 

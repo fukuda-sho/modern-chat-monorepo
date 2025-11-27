@@ -1,5 +1,7 @@
 /**
- * メッセージ入力コンポーネント
+ * @fileoverview メッセージ入力コンポーネント
+ * @description テキストエリアと送信ボタンを組み合わせたメッセージ入力フォーム
+ * Enter キーでの送信、Shift+Enter での改行に対応
  */
 
 'use client';
@@ -9,12 +11,26 @@ import { Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
-interface MessageInputProps {
+/** メッセージ入力の Props 型 */
+type MessageInputProps = {
+  /** メッセージ送信時に呼ばれるコールバック（トリム済みのコンテンツを渡す） */
   onSend: (content: string) => void;
+  /** 入力を無効化するかどうか（接続中など） */
   disabled?: boolean;
-}
+};
 
-export function MessageInput({ onSend, disabled }: MessageInputProps) {
+/**
+ * メッセージ入力コンポーネント
+ * クライアントコンポーネントとして以下の機能を提供:
+ * - テキストエリアでのメッセージ入力
+ * - Enter キーで送信、Shift+Enter で改行
+ * - 送信ボタンによるメッセージ送信
+ * - disabled 時は入力・送信を無効化し、接続中メッセージを表示
+ *
+ * @param props - メッセージ入力用 props
+ * @returns メッセージ入力フォームの JSX 要素
+ */
+export function MessageInput({ onSend, disabled }: MessageInputProps): React.JSX.Element {
   const [content, setContent] = useState('');
 
   const handleSend = useCallback(() => {

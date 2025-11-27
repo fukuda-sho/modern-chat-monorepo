@@ -1,6 +1,7 @@
 /**
- * 認証ガードコンポーネント
- * 未認証の場合はログインページにリダイレクト
+ * @fileoverview 認証ガードコンポーネント
+ * @description 認証状態を確認し、未認証の場合はログインページにリダイレクトする
+ * クライアントコンポーネントとして localStorage と useCurrentUser フックを使用
  */
 
 'use client';
@@ -10,14 +11,19 @@ import { useRouter } from 'next/navigation';
 import { useCurrentUser } from '../hooks/use-current-user';
 import { AUTH_TOKEN_KEY } from '@/lib/constants';
 
-interface AuthGuardProps {
+/** 認証ガードの Props 型 */
+type AuthGuardProps = {
+  /** 認証成功時に表示する子コンテンツ */
   children: React.ReactNode;
-}
+};
 
 /**
  * ローディングスピナーコンポーネント
+ * 認証確認中に表示する全画面ローディング UI
+ *
+ * @returns ローディングスピナーの JSX 要素
  */
-function LoadingSpinner() {
+function LoadingSpinner(): React.JSX.Element {
   return (
     <div className="flex h-screen items-center justify-center">
       <div className="border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent" />
@@ -25,10 +31,21 @@ function LoadingSpinner() {
   );
 }
 
-export function AuthGuard({ children }: AuthGuardProps) {
+/**
+ * 認証ガードコンポーネント
+ * クライアントコンポーネントとして localStorage のトークンと API からユーザー情報を確認
+ * - マウント前: ローディングスピナー表示（Hydration エラー防止）
+ * - トークンなし: /login にリダイレクト
+ * - API エラー: トークン削除後 /login にリダイレクト
+ * - 認証成功: children を表示
+ *
+ * @param props - 認証ガード用 props
+ * @returns 認証状態に応じた JSX 要素
+ */
+export function AuthGuard({ children }: AuthGuardProps): React.JSX.Element | null {
   const router = useRouter();
   const { data: user, isLoading, error } = useCurrentUser();
-  // Hydration エラー防止: クライアントでマウントされるまでローディング表示
+  /** Hydration エラー防止: クライアントでマウントされるまでローディング表示 */
   const [isMounted, setIsMounted] = useState(false);
 
   // クライアントでのみ実行（Hydration 完了後）

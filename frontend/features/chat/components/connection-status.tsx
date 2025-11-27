@@ -1,5 +1,7 @@
 /**
- * 接続状態表示コンポーネント
+ * @fileoverview 接続状態表示コンポーネント
+ * @description WebSocket の接続状態をバッジで視覚的に表示する
+ * connected/connecting/disconnected/error の 4 状態に対応
  */
 
 'use client';
@@ -8,7 +10,14 @@ import { useChatStore } from '../store/chat-store';
 import { Badge } from '@/components/ui/badge';
 import { Wifi, WifiOff, Loader2 } from 'lucide-react';
 
-export function ConnectionStatus() {
+/**
+ * 接続状態表示コンポーネント
+ * クライアントコンポーネントとして Zustand ストアから接続状態を取得
+ * 状態に応じたアイコン・ラベル・色を持つバッジを表示
+ *
+ * @returns 接続状態バッジの JSX 要素
+ */
+export function ConnectionStatus(): React.JSX.Element {
   const status = useChatStore((state) => state.connectionStatus);
 
   const statusConfig = {

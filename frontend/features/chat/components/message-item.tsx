@@ -1,5 +1,8 @@
 /**
- * 個別メッセージコンポーネント
+ * @fileoverview 個別メッセージ表示コンポーネント
+ * @description チャットメッセージを吹き出し形式で表示する
+ * 自分のメッセージと他者のメッセージで配置・色を変える
+ * memo 化により不要な再レンダリングを防止
  */
 
 'use client';
@@ -9,13 +12,18 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
 
-interface MessageItemProps {
+/** メッセージアイテムの Props 型 */
+type MessageItemProps = {
+  /** 表示するメッセージオブジェクト */
   message: Message;
+  /** 自分のメッセージかどうか（配置・色の制御に使用） */
   isOwn: boolean;
-}
+};
 
 /**
- * メッセージの時刻をフォーマット
+ * メッセージの時刻を日本語形式でフォーマット
+ * @param dateString - ISO 8601 形式の日時文字列
+ * @returns HH:MM 形式の時刻文字列
  */
 function formatMessageTime(dateString: string): string {
   const date = new Date(dateString);
@@ -25,7 +33,17 @@ function formatMessageTime(dateString: string): string {
   });
 }
 
-function MessageItemComponent({ message, isOwn }: MessageItemProps) {
+/**
+ * メッセージアイテム内部コンポーネント
+ * クライアントコンポーネントとして以下の機能を提供:
+ * - 自分のメッセージは右寄せ、他者は左寄せで表示
+ * - 他者のメッセージにはアバター（ユーザー ID 先頭2文字）を表示
+ * - メッセージ本文と送信時刻を吹き出し形式で表示
+ *
+ * @param props - メッセージアイテム用 props
+ * @returns メッセージアイテムの JSX 要素
+ */
+function MessageItemComponent({ message, isOwn }: MessageItemProps): React.JSX.Element {
   return (
     <div
       className={cn(
@@ -63,4 +81,8 @@ function MessageItemComponent({ message, isOwn }: MessageItemProps) {
   );
 }
 
+/**
+ * メモ化されたメッセージアイテムコンポーネント
+ * props が変更されない限り再レンダリングをスキップ
+ */
 export const MessageItem = memo(MessageItemComponent);

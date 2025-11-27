@@ -1,5 +1,7 @@
 /**
- * ルーム一覧コンポーネント
+ * @fileoverview ルーム一覧コンポーネント
+ * @description サイドバーに表示するチャットルームの一覧
+ * TanStack Query で API からルーム一覧を取得、新規ルーム作成ダイアログも配置
  */
 
 'use client';
@@ -14,10 +16,16 @@ import { MOCK_ROOMS } from '../data/rooms';
 
 /**
  * ルーム一覧コンポーネント
- * API からルーム一覧を取得して表示する
- * @returns ルーム一覧コンポーネント
+ * クライアントコンポーネントとして以下の機能を提供:
+ * - TanStack Query で API からルーム一覧を取得
+ * - ローディング中は「読み込み中...」を表示
+ * - API エラー時はモックデータにフォールバック
+ * - 現在選択中のルームをハイライト表示
+ * - 下部に新規ルーム作成ダイアログを配置
+ *
+ * @returns ルーム一覧の JSX 要素
  */
-export function RoomList() {
+export function RoomList(): React.JSX.Element {
   const params = useParams();
   const currentRoomId = params.roomId ? Number(params.roomId) : null;
 

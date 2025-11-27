@@ -1,3 +1,9 @@
+/**
+ * @fileoverview アバターコンポーネント
+ * @description Radix UI Avatar をベースにしたユーザーアバター表示コンポーネント
+ * 画像表示とフォールバック（イニシャル等）に対応
+ */
+
 'use client';
 
 import * as React from 'react';
@@ -5,6 +11,11 @@ import * as AvatarPrimitive from '@radix-ui/react-avatar';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * アバターコンテナコンポーネント
+ * @param props - Radix UI Avatar.Root の props
+ * @returns アバターコンテナの JSX 要素
+ */
 function Avatar({
   className,
   ...props
@@ -21,6 +32,11 @@ function Avatar({
   );
 }
 
+/**
+ * アバター画像コンポーネント
+ * @param props - Radix UI Avatar.Image の props
+ * @returns アバター画像の JSX 要素
+ */
 function AvatarImage({
   className,
   ...props
@@ -34,6 +50,12 @@ function AvatarImage({
   );
 }
 
+/**
+ * アバターフォールバックコンポーネント
+ * 画像が読み込めない場合やない場合に表示
+ * @param props - Radix UI Avatar.Fallback の props
+ * @returns アバターフォールバックの JSX 要素
+ */
 function AvatarFallback({
   className,
   ...props

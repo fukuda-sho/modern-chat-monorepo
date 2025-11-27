@@ -1,5 +1,7 @@
 /**
- * 新規チャットルーム作成ダイアログ
+ * @fileoverview 新規チャットルーム作成ダイアログ
+ * @description ユーザーが新しいチャットルームを作成するためのモーダルダイアログ
+ * TanStack Query の mutation でルーム作成 API を呼び出し、キャッシュを更新
  */
 
 'use client';
@@ -21,16 +23,20 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 
-/**
- * チャットルーム一覧のクエリキー
- */
+/** チャットルーム一覧のクエリキー（キャッシュ管理用） */
 export const CHAT_ROOMS_QUERY_KEY = ['chat-rooms'] as const;
 
 /**
  * 新規チャットルーム作成ダイアログコンポーネント
- * @returns ダイアログコンポーネント
+ * クライアントコンポーネントとして以下の機能を提供:
+ * - 「+」ボタンでダイアログを開く
+ * - ルーム名入力フォーム
+ * - 作成 API 呼び出しとエラーハンドリング
+ * - 成功時はキャッシュ更新 + 新規ルームへ遷移
+ *
+ * @returns ルーム作成ダイアログの JSX 要素
  */
-export function CreateRoomDialog() {
+export function CreateRoomDialog(): React.JSX.Element {
   const [name, setName] = useState('');
   const [open, setOpen] = useState(false);
   const router = useRouter();
