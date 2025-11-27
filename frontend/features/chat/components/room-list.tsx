@@ -7,14 +7,7 @@
 import { useParams } from 'next/navigation';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { RoomItem } from './room-item';
-import type { Room } from '@/types';
-
-// MVP: ハードコードされたルーム一覧（将来的にはAPIから取得）
-const MOCK_ROOMS: Room[] = [
-  { id: 1, name: 'general' },
-  { id: 2, name: 'random' },
-  { id: 3, name: 'development' },
-];
+import { MOCK_ROOMS } from '../data/rooms';
 
 export function RoomList() {
   const params = useParams();

@@ -2,7 +2,7 @@
  * 個別チャットルームページ
  */
 
-import { ChatRoom } from '@/features/chat';
+import { ChatRoom, getRoomById, isValidRoomId } from '@/features/chat';
 
 interface ChatRoomPageProps {
   params: Promise<{
@@ -14,6 +14,7 @@ export default async function ChatRoomPage({ params }: ChatRoomPageProps) {
   const { roomId } = await params;
   const roomIdNum = Number(roomId);
 
+  // 無効な数値の場合
   if (isNaN(roomIdNum)) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -22,5 +23,18 @@ export default async function ChatRoomPage({ params }: ChatRoomPageProps) {
     );
   }
 
-  return <ChatRoom roomId={roomIdNum} />;
+  // 存在しないルームの場合
+  if (!isValidRoomId(roomIdNum)) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-destructive">
+          チャンネルが見つかりません（ID: {roomIdNum}）
+        </p>
+      </div>
+    );
+  }
+
+  const room = getRoomById(roomIdNum);
+
+  return <ChatRoom roomId={roomIdNum} roomName={room?.name} />;
 }

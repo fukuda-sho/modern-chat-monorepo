@@ -21,6 +21,9 @@ export { useScrollToBottom } from './hooks/use-scroll-to-bottom';
 // Store
 export { useChatStore } from './store/chat-store';
 
+// Data
+export { MOCK_ROOMS, getRoomById, isValidRoomId } from './data/rooms';
+
 // Types
 export type {
   Message,
