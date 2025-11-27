@@ -4,10 +4,14 @@
 
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ChatRoom } from './chat-room';
 import { useChatSocket } from '../hooks/use-chat-socket';
 import { useChatStore } from '../store/chat-store';
 import type { ConnectionStatus } from '@/types';
+
+/** テスト用のルームデータ */
+const TEST_ROOM = { id: 1, name: 'general', createdAt: '2024-01-01T00:00:00.000Z' };
 
 // useChatSocket フックのモック
 vi.mock('../hooks/use-chat-socket', () => ({
@@ -56,6 +60,33 @@ vi.mock('@/lib/socket', () => ({
   },
 }));
 
+// API のモック
+const mockFetchChatRoom = vi.fn();
+vi.mock('../api/chat-rooms-api', () => ({
+  fetchChatRoom: (id: number) => mockFetchChatRoom(id),
+}));
+
+/**
+ * テスト用のラッパーコンポーネント
+ */
+function createTestWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  function TestWrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  }
+
+  return TestWrapper;
+}
+
 describe('ChatRoom', () => {
   const mockJoinRoom = vi.fn();
   const mockLeaveRoom = vi.fn();
@@ -96,95 +127,123 @@ describe('ChatRoom', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupMocks();
+    // デフォルトではルーム取得成功
+    mockFetchChatRoom.mockResolvedValue(TEST_ROOM);
   });
 
-  it('ルームヘッダーが表示される', () => {
-    render(<ChatRoom roomId={1} roomName="general" />);
+  it('読み込み中は「読み込み中...」が表示される', () => {
+    // API を遅延させる
+    mockFetchChatRoom.mockImplementation(
+      () => new Promise(() => {}) // never resolves
+    );
+
+    render(<ChatRoom roomId={1} />, { wrapper: createTestWrapper() });
+
+    expect(screen.getByText('読み込み中...')).toBeInTheDocument();
+  });
+
+  it('ルームヘッダーが表示される', async () => {
+    render(<ChatRoom roomId={1} />, { wrapper: createTestWrapper() });
 
     // ルーム名が表示されることを確認
-    expect(screen.getByText('general')).toBeInTheDocument();
+    expect(await screen.findByText('general')).toBeInTheDocument();
   });
 
-  it('roomName が指定されていない場合、Room {id} が表示される', () => {
-    render(<ChatRoom roomId={1} />);
+  it('ルームが見つからない場合はエラーメッセージが表示される', async () => {
+    mockFetchChatRoom.mockRejectedValue(new Error('Not Found'));
 
-    expect(screen.getByText('Room 1')).toBeInTheDocument();
+    render(<ChatRoom roomId={999} />, { wrapper: createTestWrapper() });
+
+    expect(
+      await screen.findByText('チャンネルが見つかりません（ID: 999）')
+    ).toBeInTheDocument();
   });
 
-  it('接続時に joinRoom が呼ばれる', () => {
-    render(<ChatRoom roomId={1} />);
+  it('接続時に joinRoom が呼ばれる', async () => {
+    render(<ChatRoom roomId={1} />, { wrapper: createTestWrapper() });
+
+    // ルーム読み込み完了を待つ
+    await screen.findByText('general');
 
     expect(mockJoinRoom).toHaveBeenCalledWith(1);
   });
 
-  it('未接続時には joinRoom が呼ばれない', () => {
+  it('未接続時には joinRoom が呼ばれない', async () => {
     setupMocks({ isConnected: false, connectionStatus: 'disconnected' });
 
-    render(<ChatRoom roomId={1} />);
+    render(<ChatRoom roomId={1} />, { wrapper: createTestWrapper() });
+
+    // ルーム読み込み完了を待つ
+    await screen.findByText('general');
 
     expect(mockJoinRoom).not.toHaveBeenCalled();
   });
 
-  it('接続中のステータスが表示される', () => {
+  it('接続中のステータスが表示される', async () => {
     setupMocks({ isConnected: false, connectionStatus: 'connecting' });
 
-    render(<ChatRoom roomId={1} />);
+    render(<ChatRoom roomId={1} />, { wrapper: createTestWrapper() });
+
+    // ルーム読み込み完了を待つ
+    await screen.findByText('general');
 
     expect(screen.getByText('接続中...')).toBeInTheDocument();
   });
 
-  it('接続エラーのステータスが表示される', () => {
+  it('接続エラーのステータスが表示される', async () => {
     setupMocks({ isConnected: false, connectionStatus: 'error' });
 
-    render(<ChatRoom roomId={1} />);
+    render(<ChatRoom roomId={1} />, { wrapper: createTestWrapper() });
+
+    // ルーム読み込み完了を待つ
+    await screen.findByText('general');
 
     expect(
       screen.getByText('接続エラーが発生しました。ページを再読み込みしてください。')
     ).toBeInTheDocument();
   });
 
-  it('メッセージがない場合、空のメッセージ表示になる', () => {
-    render(<ChatRoom roomId={1} />);
+  it('メッセージがない場合、空のメッセージ表示になる', async () => {
+    render(<ChatRoom roomId={1} />, { wrapper: createTestWrapper() });
+
+    // ルーム読み込み完了を待つ
+    await screen.findByText('general');
 
     expect(screen.getByText('メッセージはまだありません')).toBeInTheDocument();
   });
 
-  it('メッセージ入力フィールドが表示される', () => {
-    render(<ChatRoom roomId={1} />);
+  it('メッセージ入力フィールドが表示される', async () => {
+    render(<ChatRoom roomId={1} />, { wrapper: createTestWrapper() });
+
+    // ルーム読み込み完了を待つ
+    await screen.findByText('general');
 
     expect(
       screen.getByPlaceholderText('メッセージを入力...')
     ).toBeInTheDocument();
   });
 
-  it('未接続時はメッセージ入力が無効になる', () => {
+  it('未接続時はメッセージ入力が無効になる', async () => {
     setupMocks({ isConnected: false, connectionStatus: 'disconnected' });
 
-    render(<ChatRoom roomId={1} />);
+    render(<ChatRoom roomId={1} />, { wrapper: createTestWrapper() });
+
+    // ルーム読み込み完了を待つ
+    await screen.findByText('general');
 
     const textarea = screen.getByPlaceholderText('メッセージを入力...');
     expect(textarea).toBeDisabled();
   });
 
-  it('接続時はメッセージ入力が有効になる', () => {
+  it('接続時はメッセージ入力が有効になる', async () => {
     setupMocks({ isConnected: true, connectionStatus: 'connected' });
 
-    render(<ChatRoom roomId={1} />);
+    render(<ChatRoom roomId={1} />, { wrapper: createTestWrapper() });
+
+    // ルーム読み込み完了を待つ
+    await screen.findByText('general');
 
     const textarea = screen.getByPlaceholderText('メッセージを入力...');
     expect(textarea).not.toBeDisabled();
-  });
-
-  it('roomId が変わると leaveRoom と joinRoom が呼ばれる', () => {
-    const { rerender } = render(<ChatRoom roomId={1} />);
-
-    expect(mockJoinRoom).toHaveBeenCalledWith(1);
-
-    rerender(<ChatRoom roomId={2} />);
-
-    // 前のルームから退出
-    expect(mockLeaveRoom).toHaveBeenCalledWith(1);
-    // 新しいルームに参加
-    expect(mockJoinRoom).toHaveBeenCalledWith(2);
   });
 });

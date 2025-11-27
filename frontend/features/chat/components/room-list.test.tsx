@@ -6,7 +6,13 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RoomList } from './room-list';
-import { MOCK_ROOMS } from '../data/rooms';
+
+/** テスト用のルームデータ */
+const TEST_ROOMS = [
+  { id: 1, name: 'general', createdAt: '2024-01-01T00:00:00.000Z' },
+  { id: 2, name: 'random', createdAt: '2024-01-01T00:00:00.000Z' },
+  { id: 3, name: 'development', createdAt: '2024-01-01T00:00:00.000Z' },
+];
 
 // next/navigation のモック
 const mockParams: { roomId?: string } = {};
@@ -37,9 +43,10 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-// API のモック - エラーを返して MOCK_ROOMS にフォールバックさせる
+// API のモック
+const mockFetchChatRooms = vi.fn();
 vi.mock('../api/chat-rooms-api', () => ({
-  fetchChatRooms: () => Promise.reject(new Error('API not available')),
+  fetchChatRooms: () => mockFetchChatRooms(),
 }));
 
 /**
@@ -67,6 +74,9 @@ describe('RoomList', () => {
   beforeEach(() => {
     // params をリセット
     mockParams.roomId = undefined;
+    // API モックをリセット
+    mockFetchChatRooms.mockReset();
+    mockFetchChatRooms.mockResolvedValue(TEST_ROOMS);
   });
 
   it('Channels ヘッダーが表示される', () => {
@@ -75,26 +85,53 @@ describe('RoomList', () => {
     expect(screen.getByText('Channels')).toBeInTheDocument();
   });
 
-  it('全てのモックルームが表示される', async () => {
+  it('読み込み中は「読み込み中...」が表示される', () => {
+    // API を遅延させる
+    mockFetchChatRooms.mockImplementation(
+      () => new Promise(() => {}) // never resolves
+    );
+
     render(<RoomList />, { wrapper: createTestWrapper() });
 
-    // API エラー後に MOCK_ROOMS にフォールバックするのを待つ
-    for (const room of MOCK_ROOMS) {
+    expect(screen.getByText('読み込み中...')).toBeInTheDocument();
+  });
+
+  it('API から取得したルームが全て表示される', async () => {
+    render(<RoomList />, { wrapper: createTestWrapper() });
+
+    for (const room of TEST_ROOMS) {
       expect(await screen.findByText(room.name)).toBeInTheDocument();
     }
+  });
+
+  it('API エラー時はエラーメッセージが表示される', async () => {
+    mockFetchChatRooms.mockRejectedValue(new Error('API error'));
+
+    render(<RoomList />, { wrapper: createTestWrapper() });
+
+    expect(
+      await screen.findByText('ルーム一覧の取得に失敗しました')
+    ).toBeInTheDocument();
+  });
+
+  it('ルームが存在しない場合は空状態メッセージが表示される', async () => {
+    mockFetchChatRooms.mockResolvedValue([]);
+
+    render(<RoomList />, { wrapper: createTestWrapper() });
+
+    expect(await screen.findByText('ルームがありません')).toBeInTheDocument();
   });
 
   it('各ルームが正しいリンクを持つ', async () => {
     render(<RoomList />, { wrapper: createTestWrapper() });
 
-    // フォールバック後のリンクを待つ
     await screen.findByText('general');
 
     const links = screen.getAllByRole('link');
-    expect(links).toHaveLength(MOCK_ROOMS.length);
+    expect(links).toHaveLength(TEST_ROOMS.length);
 
     // 各リンクが正しい href を持つことを確認
-    MOCK_ROOMS.forEach((room, index) => {
+    TEST_ROOMS.forEach((room, index) => {
       expect(links[index]).toHaveAttribute('href', `/chat/${room.id}`);
     });
   });
@@ -104,7 +141,6 @@ describe('RoomList', () => {
 
     const { container } = render(<RoomList />, { wrapper: createTestWrapper() });
 
-    // フォールバック後を待つ
     await screen.findByText('general');
 
     const links = container.querySelectorAll('a');
@@ -121,7 +157,6 @@ describe('RoomList', () => {
 
     const { container } = render(<RoomList />, { wrapper: createTestWrapper() });
 
-    // フォールバック後を待つ
     await screen.findByText('general');
 
     const links = container.querySelectorAll('a');
@@ -135,7 +170,6 @@ describe('RoomList', () => {
   it('クリックしたときに正しい roomId のパスへ遷移するリンクを提供する', async () => {
     render(<RoomList />, { wrapper: createTestWrapper() });
 
-    // フォールバック後を待つ
     await screen.findByText('general');
 
     // general チャンネルのリンクをクリックすると /chat/1 へ

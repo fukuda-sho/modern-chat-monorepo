@@ -1,10 +1,10 @@
 /**
  * @fileoverview 個別チャットルームページ
  * @description 特定のチャットルームを表示するページ（Server Component）
- * URL パラメータの roomId を検証し、存在するルームのみ表示する
+ * URL パラメータの roomId を検証し、ChatRoom コンポーネントに渡す
  */
 
-import { ChatRoom, getRoomById, isValidRoomId } from '@/features/chat';
+import { ChatRoom } from '@/features/chat';
 
 /** チャットルームページの Props 型 */
 type ChatRoomPageProps = {
@@ -17,8 +17,8 @@ type ChatRoomPageProps = {
 
 /**
  * 個別チャットルームページコンポーネント（Server Component）
- * URL の roomId パラメータを検証し、有効なルームの場合のみ ChatRoom を表示
- * 無効な roomId や存在しないルームの場合はエラーメッセージを表示
+ * URL の roomId パラメータを数値として検証し、ChatRoom コンポーネントに渡す
+ * ルームの存在確認は ChatRoom コンポーネント側で API を通じて行う
  *
  * @param props - ページ props（動的ルートパラメータを含む）
  * @returns チャットルームページの JSX 要素
@@ -28,7 +28,7 @@ export default async function ChatRoomPage({ params }: ChatRoomPageProps): Promi
   const roomIdNum = Number(roomId);
 
   // 無効な数値の場合
-  if (isNaN(roomIdNum)) {
+  if (isNaN(roomIdNum) || roomIdNum <= 0) {
     return (
       <div className="flex h-full items-center justify-center">
         <p className="text-destructive">無効なルームIDです</p>
@@ -36,18 +36,5 @@ export default async function ChatRoomPage({ params }: ChatRoomPageProps): Promi
     );
   }
 
-  // 存在しないルームの場合
-  if (!isValidRoomId(roomIdNum)) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-destructive">
-          チャンネルが見つかりません（ID: {roomIdNum}）
-        </p>
-      </div>
-    );
-  }
-
-  const room = getRoomById(roomIdNum);
-
-  return <ChatRoom roomId={roomIdNum} roomName={room?.name} />;
+  return <ChatRoom roomId={roomIdNum} />;
 }

@@ -14,6 +14,15 @@ export async function fetchChatRooms(): Promise<ChatRoom[]> {
 }
 
 /**
+ * 指定 ID のチャットルームを取得する
+ * @param id - ルーム ID
+ * @returns チャットルーム（存在しない場合は 404 エラー）
+ */
+export async function fetchChatRoom(id: number): Promise<ChatRoom> {
+  return apiClient.get<ChatRoom>(`/chat-rooms/${id}`);
+}
+
+/**
  * 新しいチャットルームを作成する
  * @param name - ルーム名
  * @returns 作成されたチャットルーム

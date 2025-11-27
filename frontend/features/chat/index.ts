@@ -25,11 +25,8 @@ export { useScrollToBottom } from './hooks/use-scroll-to-bottom';
 // Store
 export { useChatStore } from './store/chat-store';
 
-// Data
-export { MOCK_ROOMS, getRoomById, isValidRoomId } from './data/rooms';
-
 // API
-export { fetchChatRooms, createChatRoom } from './api/chat-rooms-api';
+export { fetchChatRooms, fetchChatRoom, createChatRoom } from './api/chat-rooms-api';
 
 // Types
 export type {

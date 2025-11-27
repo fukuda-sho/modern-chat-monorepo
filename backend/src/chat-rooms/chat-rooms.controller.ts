@@ -3,13 +3,28 @@
  * @description /chat-rooms エンドポイントのルーティングを定義
  */
 
-import { Controller, Get, Post, Body, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  NotFoundException,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ChatRoomsService } from './chat-rooms.service';
 import { CreateChatRoomDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
-import { ApiErrorResponseDto, UnauthorizedResponseDto, ConflictResponseDto } from '../common/dto';
+import {
+  ApiErrorResponseDto,
+  UnauthorizedResponseDto,
+  ConflictResponseDto,
+  NotFoundResponseDto,
+} from '../common/dto';
 
 /**
  * 認証済みリクエストの型定義
@@ -91,5 +106,38 @@ export class ChatRoomsController {
   })
   async findAll(): Promise<object[]> {
     return this.chatRoomsService.findAll();
+  }
+
+  /**
+   * 指定 ID のチャットルームを取得する
+   * @param {number} id - チャットルーム ID
+   * @returns {Promise<object>} チャットルーム情報
+   * @throws {NotFoundException} ルームが存在しない場合
+   */
+  @Get(':id')
+  @ApiOperation({
+    summary: 'チャットルーム取得',
+    description: '指定 ID のチャットルームを取得します。',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '取得成功。チャットルーム情報を返却。',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '未認証（トークンが無効または期限切れ）',
+    type: UnauthorizedResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'チャットルームが見つからない',
+    type: NotFoundResponseDto,
+  })
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<object> {
+    const room = await this.chatRoomsService.findById(id);
+    if (!room) {
+      throw new NotFoundException(`チャットルームが見つかりません（ID: ${id}）`);
+    }
+    return room;
   }
 }

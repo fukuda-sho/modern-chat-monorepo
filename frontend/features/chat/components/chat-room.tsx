@@ -7,8 +7,10 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useChatSocket } from '../hooks/use-chat-socket';
 import { useMessages } from '../hooks/use-messages';
+import { fetchChatRoom } from '../api/chat-rooms-api';
 import { RoomHeader } from './room-header';
 import { MessageList } from './message-list';
 import { MessageInput } from './message-input';
@@ -18,13 +20,12 @@ import { TypingIndicator } from './typing-indicator';
 type ChatRoomProps = {
   /** 表示するルームの ID */
   roomId: number;
-  /** ルーム名（指定がない場合は "Room {id}" を表示） */
-  roomName?: string;
 };
 
 /**
  * チャットルームコンテナコンポーネント
  * クライアントコンポーネントとして以下の機能を提供:
+ * - API からルーム情報を取得
  * - WebSocket でのルーム参加/退出管理（roomId 変更時に自動切り替え）
  * - リアルタイムメッセージ送受信
  * - 接続状態に応じた UI 表示（接続中/エラー）
@@ -33,17 +34,24 @@ type ChatRoomProps = {
  * @param props - チャットルーム用 props
  * @returns チャットルームの JSX 要素
  */
-export function ChatRoom({
-  roomId,
-  roomName,
-}: ChatRoomProps): React.JSX.Element {
+export function ChatRoom({ roomId }: ChatRoomProps): React.JSX.Element {
   const { joinRoom, leaveRoom, sendMessage, isConnected, connectionStatus } =
     useChatSocket();
   const messages = useMessages(roomId);
 
+  // ルーム情報を API から取得
+  const {
+    data: room,
+    isLoading: isRoomLoading,
+    isError: isRoomError,
+  } = useQuery({
+    queryKey: ['chat-room', roomId],
+    queryFn: () => fetchChatRoom(roomId),
+  });
+
   // roomId が変わったときにルームに参加/退出
   useEffect(() => {
-    if (!isConnected) {
+    if (!isConnected || !room) {
       return;
     }
 
@@ -52,7 +60,7 @@ export function ChatRoom({
     return () => {
       leaveRoom(roomId);
     };
-  }, [roomId, isConnected, joinRoom, leaveRoom]);
+  }, [roomId, isConnected, room, joinRoom, leaveRoom]);
 
   const handleSendMessage = (content: string): void => {
     if (!isConnected) {
@@ -62,9 +70,32 @@ export function ChatRoom({
     sendMessage(roomId, content);
   };
 
+  // ルーム読み込み中
+  if (isRoomLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex items-center gap-2">
+          <div className="border-primary h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" />
+          <span className="text-muted-foreground">読み込み中...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ルームが見つからない（404）
+  if (isRoomError || !room) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-destructive">
+          チャンネルが見つかりません（ID: {roomId}）
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
-      <RoomHeader roomId={roomId} roomName={roomName} />
+      <RoomHeader roomId={roomId} roomName={room.name} />
 
       {/* 接続中の場合はローディング表示 */}
       {connectionStatus === 'connecting' && (
