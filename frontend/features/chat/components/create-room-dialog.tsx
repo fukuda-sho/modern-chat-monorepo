@@ -22,6 +22,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useMutationError } from '@/lib/errors';
 
 /** チャットルーム一覧のクエリキー（キャッシュ管理用） */
 export const CHAT_ROOMS_QUERY_KEY = ['chat-rooms'] as const;
@@ -56,6 +57,8 @@ export function CreateRoomDialog(): React.JSX.Element {
     },
   });
 
+  const { errorMessage, resetError } = useMutationError(mutation);
+
   /**
    * フォーム送信ハンドラ
    * @param e - フォームイベント
@@ -68,7 +71,16 @@ export function CreateRoomDialog(): React.JSX.Element {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (!isOpen) {
+          setName('');
+          resetError();
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" size="icon" aria-label="新規ルーム作成">
           <Plus className="h-4 w-4" />
@@ -82,12 +94,25 @@ export function CreateRoomDialog(): React.JSX.Element {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="#general のような名前"
-            aria-label="ルーム名"
-          />
+          <div className="space-y-2">
+            <Input
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (errorMessage) {
+                  resetError();
+                }
+              }}
+              placeholder="general"
+              aria-label="ルーム名"
+            />
+            <p className="text-xs text-muted-foreground">
+              英数字、ハイフン、アンダースコアのみ使用可能
+            </p>
+            {errorMessage && (
+              <p className="text-xs text-destructive">{errorMessage}</p>
+            )}
+          </div>
           <Button type="submit" disabled={mutation.isPending} className="w-full">
             {mutation.isPending ? '作成中...' : '作成する'}
           </Button>

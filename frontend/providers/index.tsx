@@ -9,6 +9,7 @@
 import { QueryProvider } from './query-provider';
 import { ThemeProvider } from './theme-provider';
 import { Toaster } from '@/components/ui/sonner';
+import { ErrorModal } from '@/components/error-modal';
 
 /** 統合プロバイダーの Props 型 */
 type ProvidersProps = {
@@ -32,6 +33,7 @@ export function Providers({ children }: ProvidersProps): React.JSX.Element {
       <ThemeProvider>
         {children}
         <Toaster />
+        <ErrorModal />
       </ThemeProvider>
     </QueryProvider>
   );

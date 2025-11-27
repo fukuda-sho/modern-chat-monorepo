@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { PasswordInput } from './password-input';
 import { signupSchema, type SignupFormData } from '../schemas/signup-schema';
 import { useSignup } from '../hooks/use-signup';
-import { ApiClientError } from '@/lib/api-client';
+import { useMutationError } from '@/lib/errors';
 
 /**
  * サインアップフォームコンポーネント
@@ -29,7 +29,8 @@ import { ApiClientError } from '@/lib/api-client';
  */
 export function SignupForm(): React.JSX.Element {
   const router = useRouter();
-  const { mutate: signup, isPending, error } = useSignup();
+  const signupMutation = useSignup();
+  const { errorMessage } = useMutationError(signupMutation);
 
   const form = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema),
@@ -42,7 +43,7 @@ export function SignupForm(): React.JSX.Element {
   });
 
   const onSubmit = (data: SignupFormData) => {
-    signup(
+    signupMutation.mutate(
       {
         username: data.username,
         email: data.email,
@@ -54,17 +55,6 @@ export function SignupForm(): React.JSX.Element {
         },
       }
     );
-  };
-
-  const getErrorMessage = (): string | null => {
-    if (!error) return null;
-    if (error instanceof ApiClientError) {
-      if (error.statusCode === 409) {
-        return 'このメールアドレスは既に登録されています';
-      }
-      return error.message;
-    }
-    return '通信エラーが発生しました。再度お試しください';
   };
 
   return (
@@ -135,10 +125,12 @@ export function SignupForm(): React.JSX.Element {
         )}
       </div>
 
-      {error && <p className="text-destructive text-sm">{getErrorMessage()}</p>}
+      {errorMessage && (
+        <p className="text-destructive text-sm">{errorMessage}</p>
+      )}
 
-      <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? '登録中...' : 'アカウント作成'}
+      <Button type="submit" className="w-full" disabled={signupMutation.isPending}>
+        {signupMutation.isPending ? '登録中...' : 'アカウント作成'}
       </Button>
     </form>
   );

@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { PasswordInput } from './password-input';
 import { loginSchema, type LoginFormData } from '../schemas/login-schema';
 import { useLogin } from '../hooks/use-login';
-import { ApiClientError } from '@/lib/api-client';
+import { useMutationError } from '@/lib/errors';
 
 /**
  * ログインフォームコンポーネント
@@ -29,7 +29,8 @@ import { ApiClientError } from '@/lib/api-client';
  */
 export function LoginForm(): React.JSX.Element {
   const router = useRouter();
-  const { mutate: login, isPending, error } = useLogin();
+  const loginMutation = useLogin();
+  const { errorMessage } = useMutationError(loginMutation);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -40,22 +41,11 @@ export function LoginForm(): React.JSX.Element {
   });
 
   const onSubmit = (data: LoginFormData) => {
-    login(data, {
+    loginMutation.mutate(data, {
       onSuccess: () => {
         router.push('/chat');
       },
     });
-  };
-
-  const getErrorMessage = (): string | null => {
-    if (!error) return null;
-    if (error instanceof ApiClientError) {
-      if (error.statusCode === 401) {
-        return 'メールアドレスまたはパスワードが正しくありません';
-      }
-      return error.message;
-    }
-    return '通信エラーが発生しました。再度お試しください';
   };
 
   return (
@@ -93,10 +83,12 @@ export function LoginForm(): React.JSX.Element {
         )}
       </div>
 
-      {error && <p className="text-destructive text-sm">{getErrorMessage()}</p>}
+      {errorMessage && (
+        <p className="text-destructive text-sm">{errorMessage}</p>
+      )}
 
-      <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? 'ログイン中...' : 'ログイン'}
+      <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+        {loginMutation.isPending ? 'ログイン中...' : 'ログイン'}
       </Button>
     </form>
   );

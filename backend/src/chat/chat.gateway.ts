@@ -94,17 +94,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /**
    * クライアント接続時の処理
+   * - JWT トークンを検証してユーザー情報を設定
    * - connectedUsers に追加
    * - 初回接続時は全クライアントに userOnline を配信
    * @param {AuthenticatedSocket} client - 接続したクライアント
    */
   async handleConnection(client: AuthenticatedSocket): Promise<void> {
-    const user = client.data.user;
+    // 接続時に JWT を検証してユーザー情報を設定
+    const user = this.authenticateClient(client);
     if (!user) {
       this.logger.warn(`Unauthenticated client attempted to connect: ${client.id}`);
       client.disconnect();
       return;
     }
+    client.data.user = user;
 
     const userId = user.userId;
     const socketId = client.id;
@@ -427,5 +430,67 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.typingTimeouts.delete(key);
       }
     }
+  }
+
+  /**
+   * クライアントの JWT トークンを検証してユーザー情報を返す
+   * @param {Socket} client - Socket.IO クライアント
+   * @returns {WsUser | null} ユーザー情報、認証失敗時は null
+   */
+  private authenticateClient(client: Socket): WsUser | null {
+    const token = this.extractToken(client);
+    if (!token) {
+      return null;
+    }
+
+    try {
+      const payload = this.jwtService.verify<{ sub: number; email: string }>(token);
+      return {
+        userId: payload.sub,
+        email: payload.email,
+      };
+    } catch {
+      this.logger.debug(`JWT verification failed for client: ${client.id}`);
+      return null;
+    }
+  }
+
+  /**
+   * ソケットから JWT トークンを抽出する
+   * @param {Socket} client - Socket.IO クライアント
+   * @returns {string | null} 抽出されたトークン、または null
+   */
+  private extractToken(client: Socket): string | null {
+    // 1. auth フィールドから取得（推奨）
+    const authToken = client.handshake.auth?.token as string | undefined;
+    if (authToken) {
+      return this.parseBearer(authToken);
+    }
+
+    // 2. Authorization ヘッダから取得
+    const authHeader = client.handshake.headers?.authorization;
+    if (authHeader) {
+      return this.parseBearer(authHeader);
+    }
+
+    // 3. クエリパラメータから取得（フォールバック）
+    const queryToken = client.handshake.query?.token;
+    if (typeof queryToken === 'string') {
+      return queryToken;
+    }
+
+    return null;
+  }
+
+  /**
+   * Bearer トークン形式からトークン部分を抽出する
+   * @param {string} value - Bearer トークン文字列
+   * @returns {string | null} トークン部分、または null
+   */
+  private parseBearer(value: string): string | null {
+    if (value.startsWith('Bearer ')) {
+      return value.substring(7);
+    }
+    return value;
   }
 }
