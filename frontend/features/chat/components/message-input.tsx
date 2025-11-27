@@ -2,17 +2,31 @@
  * @fileoverview メッセージ入力コンポーネント
  * @description テキストエリアと送信ボタンを組み合わせたメッセージ入力フォーム
  * Enter キーでの送信、Shift+Enter での改行に対応
+ * タイピングイベントの送信にも対応
  */
 
 'use client';
 
-import { useState, useCallback, type KeyboardEvent } from 'react';
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  type KeyboardEvent,
+  type ChangeEvent,
+} from 'react';
 import { Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { socketService } from '@/lib/socket';
+
+/** タイピングイベントのデバウンス時間（ミリ秒） */
+const TYPING_DEBOUNCE_MS = 1000;
 
 /** メッセージ入力の Props 型 */
 type MessageInputProps = {
+  /** ルーム ID */
+  roomId: number;
   /** メッセージ送信時に呼ばれるコールバック（トリム済みのコンテンツを渡す） */
   onSend: (content: string) => void;
   /** 入力を無効化するかどうか（接続中など） */
@@ -25,23 +39,94 @@ type MessageInputProps = {
  * - テキストエリアでのメッセージ入力
  * - Enter キーで送信、Shift+Enter で改行
  * - 送信ボタンによるメッセージ送信
+ * - タイピングイベントの送信（デバウンス付き）
  * - disabled 時は入力・送信を無効化し、接続中メッセージを表示
  *
  * @param props - メッセージ入力用 props
  * @returns メッセージ入力フォームの JSX 要素
  */
-export function MessageInput({ onSend, disabled }: MessageInputProps): React.JSX.Element {
+export function MessageInput({
+  roomId,
+  onSend,
+  disabled,
+}: MessageInputProps): React.JSX.Element {
   const [content, setContent] = useState('');
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
 
+  /**
+   * タイピング状態を開始し、デバウンスタイマーをセット
+   */
+  const handleTyping = useCallback(() => {
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      socketService.startTyping(roomId);
+    }
+
+    // 既存のタイムアウトをクリア
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // 指定時間後にタイピング終了
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isTypingRef.current) {
+        isTypingRef.current = false;
+        socketService.stopTyping(roomId);
+      }
+    }, TYPING_DEBOUNCE_MS);
+  }, [roomId]);
+
+  /**
+   * タイピング状態をクリア
+   */
+  const clearTyping = useCallback(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      socketService.stopTyping(roomId);
+    }
+  }, [roomId]);
+
+  // コンポーネントアンマウント時 or roomId 変更時にクリーンアップ
+  useEffect(() => {
+    return () => {
+      clearTyping();
+    };
+  }, [clearTyping]);
+
+  /**
+   * メッセージ送信処理
+   */
   const handleSend = useCallback(() => {
     const trimmed = content.trim();
     if (trimmed && !disabled) {
+      // タイピング状態をクリア
+      clearTyping();
+
       onSend(trimmed);
       setContent('');
     }
-  }, [content, disabled, onSend]);
+  }, [content, disabled, onSend, clearTyping]);
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  /**
+   * テキストエリア変更ハンドラ
+   */
+  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
+    setContent(e.target.value);
+    // 入力がある場合のみタイピングイベントを送信
+    if (e.target.value.trim()) {
+      handleTyping();
+    }
+  };
+
+  /**
+   * キーダウンハンドラ
+   */
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -53,7 +138,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps): React.JSX
       <div className="flex items-end gap-2">
         <Textarea
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="メッセージを入力..."
           disabled={disabled}

@@ -6,6 +6,7 @@
 import { io, Socket } from 'socket.io-client';
 import { WS_URL, RECONNECT_CONFIG, AUTH_TOKEN_KEY } from './constants';
 import { useChatStore } from '@/features/chat/store/chat-store';
+import { usePresenceStore } from '@/features/presence/store/presence-store';
 import type {
   MessageCreatedPayload,
   RoomJoinedPayload,
@@ -14,6 +15,13 @@ import type {
   JoinRoomPayload,
   LeaveRoomPayload,
   SendMessagePayload,
+  UserOnlinePayload,
+  UserOfflinePayload,
+  OnlineUsersListPayload,
+  UserTypingPayload,
+  GetOnlineUsersPayload,
+  StartTypingPayload,
+  StopTypingPayload,
 } from '@/types';
 
 /**
@@ -24,6 +32,10 @@ interface ServerToClientEvents {
   roomLeft: (payload: RoomLeftPayload) => void;
   messageCreated: (payload: MessageCreatedPayload) => void;
   error: (payload: ErrorPayload) => void;
+  userOnline: (payload: UserOnlinePayload) => void;
+  userOffline: (payload: UserOfflinePayload) => void;
+  onlineUsersList: (payload: OnlineUsersListPayload) => void;
+  userTyping: (payload: UserTypingPayload) => void;
 }
 
 /**
@@ -33,6 +45,9 @@ interface ClientToServerEvents {
   joinRoom: (payload: JoinRoomPayload) => void;
   leaveRoom: (payload: LeaveRoomPayload) => void;
   sendMessage: (payload: SendMessagePayload) => void;
+  getOnlineUsers: (payload: GetOnlineUsersPayload) => void;
+  startTyping: (payload: StartTypingPayload) => void;
+  stopTyping: (payload: StopTypingPayload) => void;
 }
 
 /**
@@ -97,6 +112,7 @@ class SocketService {
 
     this.reconnectAttempts = 0;
     useChatStore.getState().setConnectionStatus('disconnected');
+    usePresenceStore.getState().reset();
   }
 
   /**
@@ -110,6 +126,9 @@ class SocketService {
       console.log('[Socket] Connected');
       this.reconnectAttempts = 0;
       useChatStore.getState().setConnectionStatus('connected');
+
+      // 接続成功時にオンラインユーザー一覧を取得
+      this.getOnlineUsers();
     });
 
     // 切断
@@ -143,23 +162,85 @@ class SocketService {
       if (currentRoom === payload.roomId) {
         useChatStore.getState().setCurrentRoom(null);
       }
+      // ルーム退出時にタイピング状態をクリア
+      usePresenceStore.getState().clearTypingForRoom(payload.roomId);
     });
 
     // メッセージ受信
     this.socket.on('messageCreated', (payload) => {
       console.log('[Socket] Message received:', payload);
-      useChatStore.getState().addMessage(payload.roomId, {
-        id: payload.id,
-        roomId: payload.roomId,
-        userId: payload.userId,
-        content: payload.content,
-        createdAt: payload.createdAt,
-      });
+
+      // localId があればオプティミスティック更新の確定
+      if (payload.localId) {
+        useChatStore.getState().confirmMessage(payload.roomId, payload.localId, {
+          id: payload.id,
+          roomId: payload.roomId,
+          userId: payload.userId,
+          username: payload.username,
+          content: payload.content,
+          createdAt: payload.createdAt,
+        });
+      } else {
+        // 他のユーザーからのメッセージ
+        useChatStore.getState().addMessage(payload.roomId, {
+          id: payload.id,
+          roomId: payload.roomId,
+          userId: payload.userId,
+          username: payload.username,
+          content: payload.content,
+          createdAt: payload.createdAt,
+        });
+      }
     });
 
     // エラー
     this.socket.on('error', (payload) => {
       console.error('[Socket] Error:', payload.message);
+
+      // localId があればオプティミスティック更新の失敗処理
+      if (payload.localId) {
+        const currentRoomId = useChatStore.getState().currentRoomId;
+        if (currentRoomId) {
+          useChatStore.getState().failMessage(currentRoomId, payload.localId);
+        }
+      }
+    });
+
+    // ========================================
+    // プレゼンスイベント
+    // ========================================
+
+    // ユーザーオンライン
+    this.socket.on('userOnline', (payload) => {
+      console.log('[Socket] User online:', payload.userId);
+      usePresenceStore.getState().setUserOnline(payload.userId);
+    });
+
+    // ユーザーオフライン
+    this.socket.on('userOffline', (payload) => {
+      console.log('[Socket] User offline:', payload.userId);
+      usePresenceStore.getState().setUserOffline(payload.userId);
+    });
+
+    // オンラインユーザー一覧
+    this.socket.on('onlineUsersList', (payload) => {
+      console.log('[Socket] Online users:', payload.userIds);
+      usePresenceStore.getState().setOnlineUsers(payload.userIds);
+    });
+
+    // ========================================
+    // タイピングイベント
+    // ========================================
+
+    // タイピング状態
+    this.socket.on('userTyping', (payload) => {
+      console.log('[Socket] User typing:', payload);
+      usePresenceStore.getState().setUserTyping(
+        payload.roomId,
+        payload.userId,
+        payload.username,
+        payload.isTyping
+      );
     });
   }
 
@@ -214,12 +295,39 @@ class SocketService {
   /**
    * メッセージを送信
    */
-  sendMessage(roomId: number, content: string): void {
+  sendMessage(roomId: number, content: string, localId?: string): void {
     if (!this.socket?.connected) {
       console.warn('[Socket] Not connected, cannot send message');
       return;
     }
-    this.socket.emit('sendMessage', { roomId, content });
+    this.socket.emit('sendMessage', { roomId, content, localId });
+  }
+
+  /**
+   * オンラインユーザー一覧を要求
+   */
+  getOnlineUsers(roomId?: number): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot get online users');
+      return;
+    }
+    this.socket.emit('getOnlineUsers', { roomId });
+  }
+
+  /**
+   * タイピング開始を通知
+   */
+  startTyping(roomId: number): void {
+    if (!this.socket?.connected) return;
+    this.socket.emit('startTyping', { roomId });
+  }
+
+  /**
+   * タイピング終了を通知
+   */
+  stopTyping(roomId: number): void {
+    if (!this.socket?.connected) return;
+    this.socket.emit('stopTyping', { roomId });
   }
 
   /**

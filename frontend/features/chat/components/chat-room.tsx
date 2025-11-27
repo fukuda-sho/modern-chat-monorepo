@@ -12,6 +12,7 @@ import { useMessages } from '../hooks/use-messages';
 import { RoomHeader } from './room-header';
 import { MessageList } from './message-list';
 import { MessageInput } from './message-input';
+import { TypingIndicator } from './typing-indicator';
 
 /** チャットルームの Props 型 */
 type ChatRoomProps = {
@@ -27,11 +28,15 @@ type ChatRoomProps = {
  * - WebSocket でのルーム参加/退出管理（roomId 変更時に自動切り替え）
  * - リアルタイムメッセージ送受信
  * - 接続状態に応じた UI 表示（接続中/エラー）
+ * - タイピングインジケーター表示
  *
  * @param props - チャットルーム用 props
  * @returns チャットルームの JSX 要素
  */
-export function ChatRoom({ roomId, roomName }: ChatRoomProps): React.JSX.Element {
+export function ChatRoom({
+  roomId,
+  roomName,
+}: ChatRoomProps): React.JSX.Element {
   const { joinRoom, leaveRoom, sendMessage, isConnected, connectionStatus } =
     useChatSocket();
   const messages = useMessages(roomId);
@@ -49,7 +54,7 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps): React.JSX.Element
     };
   }, [roomId, isConnected, joinRoom, leaveRoom]);
 
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = (content: string): void => {
     if (!isConnected) {
       console.warn('[ChatRoom] Cannot send message: not connected');
       return;
@@ -77,7 +82,15 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps): React.JSX.Element
       )}
 
       <MessageList messages={messages} className="flex-1" />
-      <MessageInput onSend={handleSendMessage} disabled={!isConnected} />
+
+      {/* タイピングインジケーター */}
+      <TypingIndicator roomId={roomId} />
+
+      <MessageInput
+        roomId={roomId}
+        onSend={handleSendMessage}
+        disabled={!isConnected}
+      />
     </div>
   );
 }

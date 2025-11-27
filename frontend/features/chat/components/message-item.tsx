@@ -34,48 +34,82 @@ function formatMessageTime(dateString: string): string {
 }
 
 /**
+ * ユーザー名からアバターの頭文字を取得
+ * @param username - ユーザー名
+ * @param userId - ユーザー ID（フォールバック用）
+ * @returns 頭文字（最大2文字）
+ */
+function getAvatarInitials(username?: string, userId?: number): string {
+  if (username) {
+    // 日本語の場合は最初の1文字、英語の場合は最初の2文字
+    return username.slice(0, 2).toUpperCase();
+  }
+  if (userId) {
+    return userId.toString().slice(0, 2);
+  }
+  return '??';
+}
+
+/**
  * メッセージアイテム内部コンポーネント
  * クライアントコンポーネントとして以下の機能を提供:
  * - 自分のメッセージは右寄せ、他者は左寄せで表示
- * - 他者のメッセージにはアバター（ユーザー ID 先頭2文字）を表示
+ * - 他者のメッセージにはアバター（ユーザー名の頭文字）を表示
  * - メッセージ本文と送信時刻を吹き出し形式で表示
+ * - 送信中（isPending）の場合は半透明で表示
  *
  * @param props - メッセージアイテム用 props
  * @returns メッセージアイテムの JSX 要素
  */
-function MessageItemComponent({ message, isOwn }: MessageItemProps): React.JSX.Element {
+function MessageItemComponent({
+  message,
+  isOwn,
+}: MessageItemProps): React.JSX.Element {
+  const isPending = message.isPending ?? false;
+
   return (
     <div
       className={cn(
         'flex items-end gap-2',
-        isOwn ? 'flex-row-reverse' : 'flex-row'
+        isOwn ? 'flex-row-reverse' : 'flex-row',
+        isPending && 'opacity-60'
       )}
     >
       {!isOwn && (
         <Avatar className="h-8 w-8 shrink-0">
           <AvatarFallback className="text-xs">
-            {message.userId.toString().slice(0, 2).toUpperCase()}
+            {getAvatarInitials(message.username, message.userId)}
           </AvatarFallback>
         </Avatar>
       )}
 
-      <div
-        className={cn(
-          'max-w-[70%] rounded-2xl px-4 py-2',
-          isOwn
-            ? 'bg-primary text-primary-foreground rounded-br-sm'
-            : 'bg-muted rounded-bl-sm'
+      <div className={cn('max-w-[70%]', !isOwn && 'space-y-1')}>
+        {/* 他者のメッセージにはユーザー名を表示 */}
+        {!isOwn && message.username && (
+          <span className="text-muted-foreground ml-1 text-xs">
+            {message.username}
+          </span>
         )}
-      >
-        <p className="text-sm break-words">{message.content}</p>
-        <time
+
+        <div
           className={cn(
-            'mt-1 block text-xs',
-            isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+            'rounded-2xl px-4 py-2',
+            isOwn
+              ? 'bg-primary text-primary-foreground rounded-br-sm'
+              : 'bg-muted rounded-bl-sm'
           )}
         >
-          {formatMessageTime(message.createdAt)}
-        </time>
+          <p className="break-words text-sm">{message.content}</p>
+          <time
+            className={cn(
+              'mt-1 block text-xs',
+              isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+            )}
+          >
+            {formatMessageTime(message.createdAt)}
+            {isPending && ' (送信中...)'}
+          </time>
+        </div>
       </div>
     </div>
   );

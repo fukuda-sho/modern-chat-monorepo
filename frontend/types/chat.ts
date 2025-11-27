@@ -6,8 +6,11 @@ export interface Message {
   id: number;
   roomId: number;
   userId: number;
+  username?: string;
   content: string;
   createdAt: string;
+  localId?: string;
+  isPending?: boolean;
 }
 
 export interface Room {
@@ -31,20 +34,16 @@ export type ConnectionStatus =
   | 'disconnected'
   | 'error';
 
-/**
- * WebSocket イベントペイロード型
- */
+// ========================================
+// ルーム関連
+// ========================================
+
 export interface JoinRoomPayload {
   roomId: number;
 }
 
 export interface LeaveRoomPayload {
   roomId: number;
-}
-
-export interface SendMessagePayload {
-  roomId: number;
-  content: string;
 }
 
 export interface RoomJoinedPayload {
@@ -55,15 +54,89 @@ export interface RoomLeftPayload {
   roomId: number;
 }
 
+// ========================================
+// メッセージ関連（localId 対応）
+// ========================================
+
+export interface SendMessagePayload {
+  roomId: number;
+  content: string;
+  localId?: string;
+}
+
 export interface MessageCreatedPayload {
   id: number;
   roomId: number;
   userId: number;
+  username: string;
   content: string;
   createdAt: string;
+  localId?: string;
 }
 
 export interface ErrorPayload {
   message: string;
   code?: string;
+  localId?: string;
+}
+
+// ========================================
+// プレゼンス関連
+// ========================================
+
+/**
+ * ユーザーオンライン通知ペイロード
+ */
+export interface UserOnlinePayload {
+  userId: number;
+  username: string;
+}
+
+/**
+ * ユーザーオフライン通知ペイロード
+ */
+export interface UserOfflinePayload {
+  userId: number;
+}
+
+/**
+ * オンラインユーザー一覧要求ペイロード
+ */
+export interface GetOnlineUsersPayload {
+  roomId?: number;
+}
+
+/**
+ * オンラインユーザー一覧レスポンスペイロード
+ */
+export interface OnlineUsersListPayload {
+  userIds: number[];
+}
+
+// ========================================
+// タイピング関連
+// ========================================
+
+/**
+ * タイピング開始ペイロード
+ */
+export interface StartTypingPayload {
+  roomId: number;
+}
+
+/**
+ * タイピング終了ペイロード
+ */
+export interface StopTypingPayload {
+  roomId: number;
+}
+
+/**
+ * タイピング状態通知ペイロード
+ */
+export interface UserTypingPayload {
+  roomId: number;
+  userId: number;
+  username: string;
+  isTyping: boolean;
 }

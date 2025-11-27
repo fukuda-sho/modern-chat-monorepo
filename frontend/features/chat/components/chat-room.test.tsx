@@ -19,12 +19,22 @@ vi.mock('../store/chat-store', () => ({
   useChatStore: vi.fn(),
 }));
 
+// usePresenceStore のモック
+vi.mock('@/features/presence/store/presence-store', () => ({
+  usePresenceStore: vi.fn(() => new Map()),
+}));
+
 // useCurrentUser フックのモック
 vi.mock('@/features/auth', () => ({
   useCurrentUser: () => ({
     data: { id: 1, username: 'testuser', email: 'test@example.com' },
     isLoading: false,
   }),
+}));
+
+// useTypingUsers フックのモック
+vi.mock('@/features/presence/hooks/use-presence', () => ({
+  useTypingUsers: () => [],
 }));
 
 // next/link のモック
@@ -38,6 +48,14 @@ vi.mock('next/link', () => ({
   }) => <a href={href}>{children}</a>,
 }));
 
+// socketService のモック
+vi.mock('@/lib/socket', () => ({
+  socketService: {
+    startTyping: vi.fn(),
+    stopTyping: vi.fn(),
+  },
+}));
+
 describe('ChatRoom', () => {
   const mockJoinRoom = vi.fn();
   const mockLeaveRoom = vi.fn();
@@ -49,7 +67,7 @@ describe('ChatRoom', () => {
       connectionStatus?: ConnectionStatus;
       messages?: never[];
     } = {}
-  ) => {
+  ): void => {
     const {
       isConnected = true,
       connectionStatus = 'connected',
@@ -64,13 +82,15 @@ describe('ChatRoom', () => {
       connectionStatus,
     });
 
-    (useChatStore as Mock).mockImplementation((selector) => {
-      const state = {
-        messages: new Map([[1, messages]]),
-        connectionStatus,
-      };
-      return selector(state);
-    });
+    (useChatStore as unknown as Mock).mockImplementation(
+      (selector: (state: { messages: Map<number, never[]>; connectionStatus: ConnectionStatus }) => unknown) => {
+        const state = {
+          messages: new Map([[1, messages]]),
+          connectionStatus,
+        };
+        return selector(state);
+      }
+    );
   };
 
   beforeEach(() => {
