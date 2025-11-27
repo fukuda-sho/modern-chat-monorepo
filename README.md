@@ -187,12 +187,13 @@ make migrate
 
 ### データベース
 
-| コマンド        | 説明                    |
-| --------------- | ----------------------- |
-| `make migrate`  | Prisma マイグレーション |
-| `make studio`   | Prisma Studio 起動      |
-| `make generate` | Prisma クライアント生成 |
-| `make shell-db` | MySQL CLI 接続          |
+| コマンド        | 説明                               |
+| --------------- | ---------------------------------- |
+| `make migrate`  | Prisma マイグレーション            |
+| `make push`     | スキーマを直接反映（開発用・高速） |
+| `make studio`   | Prisma Studio 起動                 |
+| `make generate` | Prisma クライアント生成            |
+| `make shell-db` | MySQL CLI 接続                     |
 
 ### ビルド
 

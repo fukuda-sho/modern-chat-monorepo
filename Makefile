@@ -3,10 +3,10 @@
 # ============================================
 
 .PHONY: up down restart logs logs-backend logs-frontend \
-        migrate studio shell-backend shell-frontend \
+        migrate studio generate push shell-backend shell-frontend shell-db \
         build rebuild clean ps \
         test test-backend test-backend-watch test-backend-coverage \
-        test-frontend test-frontend-watch test-frontend-coverage
+        test-frontend test-frontend-watch test-frontend-coverage help
 
 # --------------------------------------------
 # 基本操作
@@ -59,6 +59,10 @@ studio:
 ## Prisma クライアント生成
 generate:
 	docker compose exec backend yarn prisma:generate
+
+## Prisma スキーマをDBに直接反映（開発用・マイグレーション不要）
+push:
+	docker compose exec backend yarn prisma:push
 
 # --------------------------------------------
 # シェルアクセス
@@ -149,6 +153,7 @@ help:
 	@echo ""
 	@echo "データベース操作:"
 	@echo "  migrate        Prisma マイグレーション実行"
+	@echo "  push           Prisma スキーマを直接反映（開発用）"
 	@echo "  studio         Prisma Studio 起動"
 	@echo "  generate       Prisma クライアント生成"
 	@echo ""
