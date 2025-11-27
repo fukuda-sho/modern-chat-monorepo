@@ -16,6 +16,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { ChannelMembershipService } from '../chat-rooms/channel-membership.service';
 import { WsJwtAuthGuard } from './guards/ws-jwt-auth.guard';
 import {
   WsUser,
@@ -33,6 +34,8 @@ import {
   UserOfflinePayload,
   OnlineUsersListPayload,
   UserTypingPayload,
+  MemberJoinedPayload,
+  MemberLeftPayload,
 } from './types/chat.types';
 
 /**
@@ -75,17 +78,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /**
    * タイピングタイムアウト時間（ミリ秒）
+   * フロントエンドのデバウンス（5秒）より長く設定し、バックアップとして機能
    */
-  private readonly TYPING_TIMEOUT_MS = 5000;
+  private readonly TYPING_TIMEOUT_MS = 7000;
 
   /**
    * ChatGateway のコンストラクタ
    * @param {PrismaService} prisma - Prisma サービスインスタンス
    * @param {JwtService} jwtService - JWT サービスインスタンス
+   * @param {ChannelMembershipService} membershipService - メンバーシップサービスインスタンス
    */
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly membershipService: ChannelMembershipService,
   ) {}
 
   // ========================================
@@ -178,16 +184,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @param {JoinRoomPayload} payload - ルーム参加ペイロード
    */
   @SubscribeMessage('joinRoom')
-  handleJoinRoom(
+  async handleJoinRoom(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: JoinRoomPayload,
-  ): void {
+  ): Promise<void> {
     const { roomId } = payload;
+    const user = client.data.user;
+    if (!user) return;
+
+    // メンバーシップ確認
+    const canAccess = await this.membershipService.canAccessChannel(user.userId, roomId);
+    if (!canAccess) {
+      client.emit('error', {
+        message: 'このチャンネルにアクセスする権限がありません',
+        code: 'CHANNEL_ACCESS_DENIED',
+      } satisfies ErrorPayload);
+      return;
+    }
+
     client.join(roomId.toString());
 
     client.emit('roomJoined', { roomId } satisfies RoomJoinedPayload);
 
-    this.logger.log(`User ${client.data.user?.userId} joined room ${roomId}`);
+    this.logger.log(`User ${user.userId} joined room ${roomId}`);
   }
 
   /**
@@ -228,6 +247,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const { roomId, content, localId } = payload;
 
     try {
+      // メンバーシップ確認
+      const canAccess = await this.membershipService.canAccessChannel(user.userId, roomId);
+      if (!canAccess) {
+        client.emit('error', {
+          message: 'このチャンネルにメッセージを送信する権限がありません',
+          code: 'CHANNEL_ACCESS_DENIED',
+          localId,
+        } satisfies ErrorPayload);
+        return;
+      }
+
       // DB にメッセージを保存
       const message = await this.prisma.message.create({
         data: {
@@ -492,5 +522,39 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return value.substring(7);
     }
     return value;
+  }
+
+  // ========================================
+  // メンバーシップイベント配信
+  // ========================================
+
+  /**
+   * メンバー参加イベントを配信
+   * @param {number} roomId - ルーム ID
+   * @param {number} userId - 参加したユーザー ID
+   * @param {string} username - ユーザー名
+   */
+  emitMemberJoined(roomId: number, userId: number, username: string): void {
+    this.server.to(roomId.toString()).emit('memberJoined', {
+      roomId,
+      userId,
+      username,
+    } satisfies MemberJoinedPayload);
+  }
+
+  /**
+   * メンバー退出イベントを配信
+   * @param {number} roomId - ルーム ID
+   * @param {number} userId - 退出したユーザー ID
+   * @param {string} username - ユーザー名
+   * @param {boolean} kicked - キックされた場合は true
+   */
+  emitMemberLeft(roomId: number, userId: number, username: string, kicked = false): void {
+    this.server.to(roomId.toString()).emit('memberLeft', {
+      roomId,
+      userId,
+      username,
+      kicked,
+    } satisfies MemberLeftPayload);
   }
 }

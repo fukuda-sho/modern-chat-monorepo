@@ -20,8 +20,11 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { socketService } from '@/lib/socket';
 
-/** タイピングイベントのデバウンス時間（ミリ秒） */
-const TYPING_DEBOUNCE_MS = 1000;
+/** タイピング停止までの非アクティブ時間（ミリ秒）- Slack ライクに 5 秒 */
+const TYPING_STOP_DELAY_MS = 5000;
+
+/** タイピングハートビート間隔（ミリ秒）- バックエンドのタイムアウトより短く */
+const TYPING_HEARTBEAT_MS = 4000;
 
 /** メッセージ入力の Props 型 */
 type MessageInputProps = {
@@ -53,13 +56,21 @@ export function MessageInput({
   const [content, setContent] = useState('');
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+  /** 最後に startTyping を送信した時刻（ハートビート用） */
+  const lastTypingSentRef = useRef<number>(0);
 
   /**
-   * タイピング状態を開始し、デバウンスタイマーをセット
+   * タイピング状態を開始し、ハートビートとデバウンスタイマーを管理
+   * - 初回または TYPING_HEARTBEAT_MS 経過後に startTyping を送信
+   * - これによりバックエンドのタイムアウトがリセットされ続ける
    */
   const handleTyping = useCallback(() => {
-    if (!isTypingRef.current) {
+    const now = Date.now();
+
+    // 初回、または前回送信から TYPING_HEARTBEAT_MS 経過していれば送信
+    if (!isTypingRef.current || now - lastTypingSentRef.current >= TYPING_HEARTBEAT_MS) {
       isTypingRef.current = true;
+      lastTypingSentRef.current = now;
       socketService.startTyping(roomId);
     }
 
@@ -72,9 +83,10 @@ export function MessageInput({
     typingTimeoutRef.current = setTimeout(() => {
       if (isTypingRef.current) {
         isTypingRef.current = false;
+        lastTypingSentRef.current = 0;
         socketService.stopTyping(roomId);
       }
-    }, TYPING_DEBOUNCE_MS);
+    }, TYPING_STOP_DELAY_MS);
   }, [roomId]);
 
   /**
@@ -87,6 +99,7 @@ export function MessageInput({
     }
     if (isTypingRef.current) {
       isTypingRef.current = false;
+      lastTypingSentRef.current = 0;
       socketService.stopTyping(roomId);
     }
   }, [roomId]);
@@ -133,6 +146,13 @@ export function MessageInput({
     }
   };
 
+  /**
+   * フォーカスアウトハンドラ（blur 時にタイピング状態を即座にクリア）
+   */
+  const handleBlur = (): void => {
+    clearTyping();
+  };
+
   return (
     <div className="bg-background border-t p-4">
       <div className="flex items-end gap-2">
@@ -140,6 +160,7 @@ export function MessageInput({
           value={content}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
           placeholder="メッセージを入力..."
           disabled={disabled}
           className="max-h-[120px] min-h-[44px] resize-none"
