@@ -122,3 +122,4 @@ Design documents and implementation details in `docs/`:
 - `00_planning/` - Database design
 - `10_implementation/` - Detailed implementation specs for backend/frontend features
 - `20_decisions/` - ADRs for technology choices
+- `90_prompt_logs/` - AI work logs (session records with Claude Code, documenting implemented tasks and changes)

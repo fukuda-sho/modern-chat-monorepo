@@ -578,13 +578,14 @@ docker compose up -d frontend
 
 ## 詳細ドキュメント
 
-| ディレクトリ              | 内容                   |
-| ------------------------- | ---------------------- |
-| `docs/00_planning/`       | 設計・企画ドキュメント |
-| `docs/10_implementation/` | 実装仕様書             |
-| `docs/20_decisions/`      | 技術選定・ADR          |
-| `backend/README.md`       | Backend 詳細           |
-| `frontend/README.md`      | Frontend 詳細          |
+| ディレクトリ              | 内容                                        |
+| ------------------------- | ------------------------------------------- |
+| `docs/00_planning/`       | 設計・企画ドキュメント                      |
+| `docs/10_implementation/` | 実装仕様書                                  |
+| `docs/20_decisions/`      | 技術選定・ADR                               |
+| `docs/90_prompt_logs/`    | AI 作業ログ（Claude Code との作業記録）     |
+| `backend/README.md`       | Backend 詳細                                |
+| `frontend/README.md`      | Frontend 詳細                               |
 
 ---
 

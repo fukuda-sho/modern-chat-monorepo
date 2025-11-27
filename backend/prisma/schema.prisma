@@ -13,23 +13,28 @@ datasource db {
 
 /// ユーザー情報を管理するモデル
 model User {
-  id        Int       @id @default(autoincrement())
-  username  String    @unique @db.VarChar(255)
-  email     String    @unique @db.VarChar(255)
-  password  String    @db.VarChar(255)
-  createdAt DateTime  @default(now()) @map("created_at")
-  messages  Message[]
+  id           Int        @id @default(autoincrement())
+  username     String     @unique @db.VarChar(255)
+  email        String     @unique @db.VarChar(255)
+  password     String     @db.VarChar(255)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  messages     Message[]
+  createdRooms ChatRoom[] @relation("CreatedRooms")
 
   @@map("users")
 }
 
 /// チャットルーム情報を管理するモデル
 model ChatRoom {
-  id        Int       @id @default(autoincrement())
-  name      String    @db.VarChar(255)
-  createdAt DateTime  @default(now()) @map("created_at")
-  messages  Message[]
+  id              Int       @id @default(autoincrement())
+  name            String    @unique @db.VarChar(255)
+  createdByUserId Int?      @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  messages        Message[]
 
+  createdByUser User? @relation("CreatedRooms", fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([createdByUserId], map: "idx_chat_rooms_created_by")
   @@map("chat_rooms")
 }
 

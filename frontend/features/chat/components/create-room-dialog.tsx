@@ -1,0 +1,92 @@
+/**
+ * 新規チャットルーム作成ダイアログ
+ */
+
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
+import { createChatRoom } from '../api/chat-rooms-api';
+import type { ChatRoom } from '../types';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+
+/**
+ * チャットルーム一覧のクエリキー
+ */
+export const CHAT_ROOMS_QUERY_KEY = ['chat-rooms'] as const;
+
+/**
+ * 新規チャットルーム作成ダイアログコンポーネント
+ * @returns ダイアログコンポーネント
+ */
+export function CreateRoomDialog() {
+  const [name, setName] = useState('');
+  const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: (roomName: string) => createChatRoom(roomName),
+    onSuccess: (room) => {
+      // ルーム一覧キャッシュを更新
+      queryClient.setQueryData<ChatRoom[] | undefined>(
+        CHAT_ROOMS_QUERY_KEY,
+        (old) => (old ? [...old, room] : [room])
+      );
+      setName('');
+      setOpen(false);
+      router.push(`/chat/${room.id}`);
+    },
+  });
+
+  /**
+   * フォーム送信ハンドラ
+   * @param e - フォームイベント
+   */
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    mutation.mutate(trimmed);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="icon" aria-label="新規ルーム作成">
+          <Plus className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>新しいルームを作成</DialogTitle>
+          <DialogDescription>
+            チャットルームの名前を入力してください
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="#general のような名前"
+            aria-label="ルーム名"
+          />
+          <Button type="submit" disabled={mutation.isPending} className="w-full">
+            {mutation.isPending ? '作成中...' : '作成する'}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

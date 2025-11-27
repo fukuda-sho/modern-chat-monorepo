@@ -15,6 +15,16 @@ export interface Room {
   name: string;
 }
 
+/**
+ * API から取得するチャットルーム（詳細情報付き）
+ */
+export interface ChatRoom {
+  id: number;
+  name: string;
+  createdAt: string;
+  createdByUserId: number;
+}
+
 export type ConnectionStatus =
   | 'connecting'
   | 'connected'
