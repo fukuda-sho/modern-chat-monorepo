@@ -1,35 +1,21 @@
+/**
+ * @fileoverview アプリケーションのルートモジュール
+ * @description 全てのモジュールを統合するルートモジュール
+ */
+
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
-import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { HealthModule } from './health/health.module';
 import { ChatModule } from './chat/chat.module';
-import configuration from './config/app.config';
+import { ChatRoomsModule } from './chat-rooms/chat-rooms.module';
 
 /**
  * アプリケーションのルートモジュール
- *
- * ConfigModuleをグローバルモジュールとして設定し、
- * アプリケーション全体で環境変数にアクセスできるようにします。
+ * @description PrismaModule, AuthModule, UsersModule, HealthModule, ChatModule, ChatRoomsModule をインポートする
  */
 @Module({
-  imports: [
-    // グローバルに設定を利用可能にする
-    ConfigModule.forRoot({
-      isGlobal: true,
-      load: [configuration],
-      envFilePath: '.env',
-      // 本番環境では環境変数ファイルを使用しない
-      ignoreEnvFile: process.env.NODE_ENV === 'production',
-    }),
-    PrismaModule,
-    UsersModule,
-    AuthModule,
-    ChatModule,
-  ],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [PrismaModule, AuthModule, UsersModule, HealthModule, ChatModule, ChatRoomsModule],
 })
 export class AppModule {}

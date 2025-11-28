@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -10,40 +11,118 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  email     String   @unique
-  password  String   // Hashed password
-  createdAt DateTime @default(now())
+/// チャンネルタイプ
+enum ChannelType {
+  PUBLIC  // 誰でも参加可能
+  PRIVATE // 招待制
+  DM      // ダイレクトメッセージ（Phase 4）
+}
 
-  messages  Message[]
-  chatRooms ChatRoom[]
+/// チャンネルメンバーの役割
+enum MemberRole {
+  OWNER  // チャンネル作成者
+  ADMIN  // 管理者（招待・キック可能）
+  MEMBER // 一般メンバー
+}
+
+/// ユーザー情報を管理するモデル
+model User {
+  id                 Int               @id @default(autoincrement())
+  username           String            @unique @db.VarChar(255)
+  email              String            @unique @db.VarChar(255)
+  password           String            @db.VarChar(255)
+  createdAt          DateTime          @default(now()) @map("created_at")
+  messages           Message[]
+  createdRooms       ChatRoom[]        @relation("CreatedRooms")
+  channelMemberships ChannelMember[]
+  reactions          Reaction[]
+  threadLastReplies  Message[]         @relation("MessageThreadLastReply")
 
   @@map("users")
 }
 
+/// チャットルーム情報を管理するモデル
 model ChatRoom {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
+  id              Int             @id @default(autoincrement())
+  name            String          @unique @db.VarChar(255)
+  createdByUserId Int?            @map("created_by_user_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  type            ChannelType     @default(PUBLIC)
+  description     String?         @db.VarChar(500)
+  messages        Message[]
+  members         ChannelMember[]
 
-  messages Message[]
-  users    User[]
+  createdByUser User? @relation("CreatedRooms", fields: [createdByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
+  @@index([createdByUserId], map: "idx_chat_rooms_created_by")
+  @@index([type], map: "idx_chat_rooms_type")
   @@map("chat_rooms")
 }
 
+/// チャットメッセージを管理するモデル
 model Message {
-  id         Int      @id @default(autoincrement())
-  content    String   @db.Text
-  createdAt  DateTime @default(now())
-  
-  userId     Int
-  user       User     @relation(fields: [userId], references: [id])
-  
-  chatRoomId Int
-  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id])
+  id         Int       @id @default(autoincrement())
+  content    String    @db.Text
+  userId     Int       @map("user_id")
+  chatRoomId Int       @map("chat_room_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  // Phase 3: スレッド
+  parentMessageId     Int?      @map("parent_message_id")
+  threadReplyCount    Int       @default(0) @map("thread_reply_count")
+  threadLastRepliedAt DateTime? @map("thread_last_replied_at")
+  threadLastRepliedBy Int?      @map("thread_last_replied_by")
+  // Phase 2: 編集/削除フィールド
+  isEdited   Boolean   @default(false) @map("is_edited")
+  editedAt   DateTime? @map("edited_at")
+  isDeleted  Boolean   @default(false) @map("is_deleted")
+  deletedAt  DateTime? @map("deleted_at")
 
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  chatRoom  ChatRoom   @relation(fields: [chatRoomId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  reactions Reaction[]
+  parentMessage         Message? @relation("MessageThread", fields: [parentMessageId], references: [id], onDelete: Cascade)
+  threadReplies         Message[] @relation("MessageThread")
+  threadLastRepliedByUser User?    @relation("MessageThreadLastReply", fields: [threadLastRepliedBy], references: [id], onDelete: SetNull)
+
+  @@index([userId], map: "idx_messages_user_id")
+  @@index([chatRoomId], map: "idx_messages_chat_room_id")
+  @@index([chatRoomId, createdAt], map: "idx_messages_room_created")
+  @@index([parentMessageId, createdAt], map: "idx_messages_parent_created")
   @@map("messages")
+}
+
+/// メッセージへのリアクションを管理するモデル
+model Reaction {
+  id        Int      @id @default(autoincrement())
+  emoji     String   @db.VarChar(50)
+  userId    Int      @map("user_id")
+  messageId Int      @map("message_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId, emoji])
+  @@index([messageId], map: "idx_reactions_message_id")
+  @@map("reactions")
+}
+
+/// チャンネルメンバーシップを管理するモデル
+model ChannelMember {
+  id                Int        @id @default(autoincrement())
+  userId            Int        @map("user_id")
+  chatRoomId        Int        @map("chat_room_id")
+  role              MemberRole @default(MEMBER)
+  isStarred         Boolean    @default(false) @map("is_starred")
+  joinedAt          DateTime   @default(now()) @map("joined_at")
+  lastReadAt        DateTime?  @map("last_read_at")
+  lastReadMessageId Int?       @map("last_read_message_id")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chatRoomId])
+  @@index([userId], map: "idx_channel_members_user_id")
+  @@index([chatRoomId], map: "idx_channel_members_chat_room_id")
+  @@map("channel_members")
 }

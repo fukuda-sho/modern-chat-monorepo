@@ -1,0 +1,966 @@
+/**
+ * WebSocket サービス
+ * Socket.IO クライアントの管理とイベント処理
+ */
+
+import { io, Socket } from 'socket.io-client';
+import { WS_URL, RECONNECT_CONFIG, AUTH_TOKEN_KEY } from './constants';
+import { getQueryClient } from './query-client';
+import { useChatStore } from '@/features/chat/store/chat-store';
+import { usePresenceStore } from '@/features/presence/store/presence-store';
+import { roomMessagesKeys } from '@/features/chat/hooks/use-room-messages';
+import { threadMessagesKeys } from '@/features/chat/hooks/use-thread-messages';
+import type {
+  MessageCreatedPayload,
+  RoomJoinedPayload,
+  RoomLeftPayload,
+  ErrorPayload,
+  JoinRoomPayload,
+  LeaveRoomPayload,
+  SendMessagePayload,
+  UserOnlinePayload,
+  UserOfflinePayload,
+  OnlineUsersListPayload,
+  UserTypingPayload,
+  GetOnlineUsersPayload,
+  StartTypingPayload,
+  StopTypingPayload,
+  Message,
+  MessageHistoryResponse,
+  EditMessagePayload,
+  DeleteMessagePayload,
+  AddReactionPayload,
+  RemoveReactionPayload,
+  MessageUpdatedPayload,
+  MessageDeletedPayload,
+  ReactionAddedPayload,
+  ReactionRemovedPayload,
+  CreateThreadReplyPayload,
+  ThreadReplyAddedPayload,
+  ThreadReplyUpdatedPayload,
+  ThreadReplyDeletedPayload,
+  ThreadSummaryUpdatedPayload,
+  ThreadMessagesResponse,
+} from '@/types';
+
+/**
+ * サーバー → クライアント イベント型
+ */
+interface ServerToClientEvents {
+  roomJoined: (payload: RoomJoinedPayload) => void;
+  roomLeft: (payload: RoomLeftPayload) => void;
+  messageCreated: (payload: MessageCreatedPayload) => void;
+  messageUpdated: (payload: MessageUpdatedPayload) => void;
+  messageDeleted: (payload: MessageDeletedPayload) => void;
+  reactionAdded: (payload: ReactionAddedPayload) => void;
+  reactionRemoved: (payload: ReactionRemovedPayload) => void;
+  error: (payload: ErrorPayload) => void;
+  userOnline: (payload: UserOnlinePayload) => void;
+  userOffline: (payload: UserOfflinePayload) => void;
+  onlineUsersList: (payload: OnlineUsersListPayload) => void;
+  userTyping: (payload: UserTypingPayload) => void;
+  threadReplyAdded: (payload: ThreadReplyAddedPayload) => void;
+  threadReplyUpdated: (payload: ThreadReplyUpdatedPayload) => void;
+  threadReplyDeleted: (payload: ThreadReplyDeletedPayload) => void;
+  threadSummaryUpdated: (payload: ThreadSummaryUpdatedPayload) => void;
+}
+
+/**
+ * クライアント → サーバー イベント型
+ */
+interface ClientToServerEvents {
+  joinRoom: (payload: JoinRoomPayload) => void;
+  leaveRoom: (payload: LeaveRoomPayload) => void;
+  sendMessage: (payload: SendMessagePayload) => void;
+  editMessage: (payload: EditMessagePayload) => void;
+  deleteMessage: (payload: DeleteMessagePayload) => void;
+  addReaction: (payload: AddReactionPayload) => void;
+  removeReaction: (payload: RemoveReactionPayload) => void;
+  getOnlineUsers: (payload: GetOnlineUsersPayload) => void;
+  startTyping: (payload: StartTypingPayload) => void;
+  stopTyping: (payload: StopTypingPayload) => void;
+  createThreadReply: (payload: CreateThreadReplyPayload) => void;
+}
+
+/**
+ * WebSocket 接続管理サービス
+ * シングルトンパターンで実装
+ */
+class SocketService {
+  private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null =
+    null;
+  private reconnectAttempts = 0;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * WebSocket 接続を開始
+   * @param token - JWT アクセストークン
+   */
+  connect(token: string): void {
+    // 既に接続済み、または接続中の場合は何もしない
+    if (this.socket) {
+      if (this.socket.connected) {
+        console.log('[Socket] Already connected');
+      } else {
+        console.log('[Socket] Connection already in progress');
+      }
+      return;
+    }
+
+    useChatStore.getState().setConnectionStatus('connecting');
+
+    this.socket = io(WS_URL, {
+      auth: {
+        token: `Bearer ${token}`,
+      },
+      transports: ['websocket', 'polling'],
+      reconnection: false, // 手動で再接続を制御
+    });
+
+    this.setupEventListeners();
+  }
+
+  /**
+   * 保存されたトークンで接続を開始
+   */
+  connectWithStoredToken(): void {
+    if (typeof window === 'undefined') return;
+
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+      this.connect(token);
+    }
+  }
+
+  /**
+   * WebSocket 接続を切断
+   */
+  disconnect(): void {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
+    this.reconnectAttempts = 0;
+    useChatStore.getState().setConnectionStatus('disconnected');
+    usePresenceStore.getState().reset();
+  }
+
+  /**
+   * イベントリスナーを設定
+   */
+  private setupEventListeners(): void {
+    if (!this.socket) return;
+
+    // 接続成功
+    this.socket.on('connect', () => {
+      console.log('[Socket] Connected');
+      this.reconnectAttempts = 0;
+      useChatStore.getState().setConnectionStatus('connected');
+
+      // 接続成功時にオンラインユーザー一覧を取得
+      this.getOnlineUsers();
+    });
+
+    // 切断
+    this.socket.on('disconnect', (reason) => {
+      console.log('[Socket] Disconnected:', reason);
+      useChatStore.getState().setConnectionStatus('disconnected');
+
+      // サーバー側からの意図的な切断でなければ再接続
+      if (reason !== 'io server disconnect') {
+        this.attemptReconnect();
+      }
+    });
+
+    // 接続エラー
+    this.socket.on('connect_error', (error) => {
+      console.error('[Socket] Connection error:', error.message);
+      useChatStore.getState().setConnectionStatus('disconnected');
+      this.attemptReconnect();
+    });
+
+    // ルーム参加完了
+    this.socket.on('roomJoined', (payload) => {
+      console.log('[Socket] Joined room:', payload.roomId);
+      useChatStore.getState().setCurrentRoom(payload.roomId);
+    });
+
+    // ルーム退出完了
+    this.socket.on('roomLeft', (payload) => {
+      console.log('[Socket] Left room:', payload.roomId);
+      const currentRoom = useChatStore.getState().currentRoomId;
+      if (currentRoom === payload.roomId) {
+        useChatStore.getState().setCurrentRoom(null);
+      }
+      // ルーム退出時にタイピング状態をクリア
+      usePresenceStore.getState().clearTypingForRoom(payload.roomId);
+    });
+
+    // メッセージ受信
+    this.socket.on('messageCreated', (payload) => {
+      console.log('[Socket] Message received:', payload);
+
+      const message: Message = {
+        id: payload.id,
+        roomId: payload.roomId,
+        parentMessageId: payload.parentMessageId ?? null,
+        userId: payload.userId,
+        username: payload.username,
+        content: payload.content,
+        createdAt: payload.createdAt,
+        localId: payload.localId,
+        threadReplyCount: payload.threadReplyCount ?? 0,
+        threadLastRepliedAt: payload.threadLastRepliedAt ?? null,
+        threadLastRepliedBy: payload.threadLastRepliedBy ?? null,
+      };
+
+      // TanStack Query キャッシュを更新
+      this.updateQueryCache(payload.roomId, message, payload.localId);
+
+      // Zustand ストアも更新（後方互換性のため）
+      if (payload.localId) {
+        useChatStore.getState().confirmMessage(payload.roomId, payload.localId, message);
+      } else {
+        useChatStore.getState().addMessage(payload.roomId, message);
+      }
+    });
+
+    // エラー
+    this.socket.on('error', (payload) => {
+      console.error('[Socket] Error:', payload.message);
+
+      if (payload.localId && payload.parentMessageId) {
+        this.removeOptimisticThreadReply(payload.parentMessageId, payload.localId);
+      }
+
+      // localId があればオプティミスティック更新の失敗処理
+      if (payload.localId) {
+        const currentRoomId = useChatStore.getState().currentRoomId;
+        if (currentRoomId) {
+          useChatStore.getState().failMessage(currentRoomId, payload.localId);
+        }
+      }
+    });
+
+    // ========================================
+    // プレゼンスイベント
+    // ========================================
+
+    // ユーザーオンライン
+    this.socket.on('userOnline', (payload) => {
+      console.log('[Socket] User online:', payload.userId);
+      usePresenceStore.getState().setUserOnline(payload.userId);
+    });
+
+    // ユーザーオフライン
+    this.socket.on('userOffline', (payload) => {
+      console.log('[Socket] User offline:', payload.userId);
+      usePresenceStore.getState().setUserOffline(payload.userId);
+    });
+
+    // オンラインユーザー一覧
+    this.socket.on('onlineUsersList', (payload) => {
+      console.log('[Socket] Online users:', payload.userIds);
+      usePresenceStore.getState().setOnlineUsers(payload.userIds);
+    });
+
+    // ========================================
+    // タイピングイベント
+    // ========================================
+
+    // タイピング状態
+    this.socket.on('userTyping', (payload) => {
+      console.log('[Socket] User typing:', payload);
+      usePresenceStore.getState().setUserTyping(
+        payload.roomId,
+        payload.userId,
+        payload.username,
+        payload.isTyping
+      );
+    });
+
+    // ========================================
+    // メッセージ編集・削除イベント
+    // ========================================
+
+    // メッセージ更新
+    this.socket.on('messageUpdated', (payload) => {
+      console.log('[Socket] Message updated:', payload);
+      this.updateMessageInCache(payload.roomId, payload.id, {
+        content: payload.content,
+        isEdited: payload.isEdited,
+        editedAt: payload.editedAt,
+      });
+    });
+
+    // メッセージ削除
+    this.socket.on('messageDeleted', (payload) => {
+      console.log('[Socket] Message deleted:', payload);
+      this.updateMessageInCache(payload.roomId, payload.id, {
+        isDeleted: true,
+        content: '',
+      });
+    });
+
+    // ========================================
+    // リアクションイベント
+    // ========================================
+
+    // リアクション追加
+    this.socket.on('reactionAdded', (payload) => {
+      console.log('[Socket] Reaction added:', payload);
+      if (payload.parentMessageId) {
+        this.addReactionToThreadCache(
+          payload.parentMessageId,
+          payload.messageId,
+          payload.emoji,
+          payload.userId
+        );
+      } else {
+        this.addReactionToCache(
+          payload.roomId,
+          payload.messageId,
+          payload.emoji,
+          payload.userId
+        );
+      }
+    });
+
+    // リアクション削除
+    this.socket.on('reactionRemoved', (payload) => {
+      console.log('[Socket] Reaction removed:', payload);
+      if (payload.parentMessageId) {
+        this.removeReactionFromThreadCache(
+          payload.parentMessageId,
+          payload.messageId,
+          payload.emoji,
+          payload.userId
+        );
+      } else {
+        this.removeReactionFromCache(
+          payload.roomId,
+          payload.messageId,
+          payload.emoji,
+          payload.userId
+        );
+      }
+    });
+
+    // ========================================
+    // スレッドイベント
+    // ========================================
+    this.socket.on('threadReplyAdded', (payload) => {
+      console.log('[Socket] Thread reply added:', payload);
+      const reply: Message = {
+        id: payload.reply.id,
+        roomId: payload.roomId,
+        parentMessageId: payload.parentMessageId,
+        userId: payload.reply.userId,
+        username: payload.reply.username,
+        content: payload.reply.content,
+        createdAt: payload.reply.createdAt,
+        localId: payload.reply.localId,
+        isEdited: false,
+        isDeleted: false,
+        threadReplyCount: 0,
+        threadLastRepliedAt: null,
+        threadLastRepliedBy: null,
+        reactions: [],
+      };
+      this.addThreadReplyToCache(payload.parentMessageId, reply);
+    });
+
+    this.socket.on('threadReplyUpdated', (payload) => {
+      console.log('[Socket] Thread reply updated:', payload);
+      this.updateThreadReplyInCache(payload.parentMessageId, payload.replyId, {
+        content: payload.content,
+        isEdited: payload.isEdited,
+        editedAt: payload.editedAt,
+      });
+    });
+
+    this.socket.on('threadReplyDeleted', (payload) => {
+      console.log('[Socket] Thread reply deleted:', payload);
+      this.updateThreadReplyInCache(payload.parentMessageId, payload.replyId, {
+        isDeleted: true,
+        content: '',
+      });
+    });
+
+    this.socket.on('threadSummaryUpdated', (payload) => {
+      console.log('[Socket] Thread summary updated:', payload);
+      this.updateMessageInCache(payload.roomId, payload.parentMessageId, {
+        threadReplyCount: payload.threadReplyCount,
+        threadLastRepliedAt: payload.threadLastRepliedAt,
+        threadLastRepliedBy: payload.threadLastRepliedBy,
+        threadLastRepliedByUser:
+          payload.threadLastRepliedBy && payload.threadLastRepliedByUsername
+            ? {
+                id: payload.threadLastRepliedBy,
+                username: payload.threadLastRepliedByUsername,
+                email: '',
+              }
+            : undefined,
+      });
+      this.updateThreadSummaryInCache(payload.parentMessageId, payload);
+    });
+  }
+
+  /**
+   * 再接続を試行（Exponential Backoff）
+   */
+  private attemptReconnect(): void {
+    if (this.reconnectAttempts >= RECONNECT_CONFIG.maxAttempts) {
+      console.error('[Socket] Max reconnection attempts reached');
+      useChatStore.getState().setConnectionStatus('error');
+      return;
+    }
+
+    const delay = Math.min(
+      RECONNECT_CONFIG.baseDelay *
+        Math.pow(RECONNECT_CONFIG.multiplier, this.reconnectAttempts),
+      RECONNECT_CONFIG.maxDelay
+    );
+
+    console.log(
+      `[Socket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1})`
+    );
+
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectAttempts++;
+      this.socket?.connect();
+    }, delay);
+  }
+
+  /**
+   * ルームに参加
+   */
+  joinRoom(roomId: number): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot join room');
+      return;
+    }
+    this.socket.emit('joinRoom', { roomId });
+  }
+
+  /**
+   * ルームから退出
+   */
+  leaveRoom(roomId: number): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot leave room');
+      return;
+    }
+    this.socket.emit('leaveRoom', { roomId });
+  }
+
+  /**
+   * メッセージを送信
+   */
+  sendMessage(roomId: number, content: string, localId?: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot send message');
+      return;
+    }
+    this.socket.emit('sendMessage', { roomId, content, localId });
+  }
+
+  /**
+   * オンラインユーザー一覧を要求
+   */
+  getOnlineUsers(roomId?: number): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot get online users');
+      return;
+    }
+    this.socket.emit('getOnlineUsers', { roomId });
+  }
+
+  /**
+   * タイピング開始を通知
+   */
+  startTyping(roomId: number): void {
+    if (!this.socket?.connected) return;
+    this.socket.emit('startTyping', { roomId });
+  }
+
+  /**
+   * タイピング終了を通知
+   */
+  stopTyping(roomId: number): void {
+    if (!this.socket?.connected) return;
+    this.socket.emit('stopTyping', { roomId });
+  }
+
+  /**
+   * メッセージを編集
+   */
+  editMessage(messageId: number, content: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot edit message');
+      return;
+    }
+    this.socket.emit('editMessage', { messageId, content });
+  }
+
+  /**
+   * メッセージを削除
+   */
+  deleteMessage(messageId: number): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot delete message');
+      return;
+    }
+    this.socket.emit('deleteMessage', { messageId });
+  }
+
+  /**
+   * リアクションを追加
+   */
+  addReaction(messageId: number, emoji: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot add reaction');
+      return;
+    }
+    this.socket.emit('addReaction', { messageId, emoji });
+  }
+
+  /**
+   * リアクションを削除
+   */
+  removeReaction(messageId: number, emoji: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot remove reaction');
+      return;
+    }
+    this.socket.emit('removeReaction', { messageId, emoji });
+  }
+
+  /**
+   * スレッド返信を送信
+   */
+  createThreadReply(parentMessageId: number, content: string, localId?: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot send thread reply');
+      return;
+    }
+    this.socket.emit('createThreadReply', { parentMessageId, content, localId });
+  }
+
+  /**
+   * 接続状態を取得
+   */
+  isConnected(): boolean {
+    return this.socket?.connected ?? false;
+  }
+
+  /**
+   * TanStack Query キャッシュを更新
+   * @param roomId ルームID
+   * @param message メッセージ
+   * @param localId ローカルID（オプティミスティック更新用）
+   */
+  private updateQueryCache(roomId: number, message: Message, localId?: string): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: MessageHistoryResponse[];
+      pageParams: (number | undefined)[];
+    }>(roomMessagesKeys.room(roomId), (oldData) => {
+      if (!oldData) {
+        // キャッシュがない場合は新しいページを作成
+        return {
+          pages: [
+            {
+              data: [message],
+              pagination: { hasMore: false, nextCursor: null, prevCursor: null },
+            },
+          ],
+          pageParams: [undefined],
+        };
+      }
+
+      // localId がある場合はオプティミスティック更新の確定
+      if (localId) {
+        const newPages = oldData.pages.map((page) => ({
+          ...page,
+          data: page.data.map((msg) =>
+            msg.localId === localId ? { ...message, isPending: false } : msg,
+          ),
+        }));
+
+        return {
+          ...oldData,
+          pages: newPages,
+        };
+      }
+
+      // 新着メッセージを最初のページに追加
+      const newPages = [...oldData.pages];
+      if (newPages.length > 0) {
+        // 重複チェック
+        const allMessages = newPages.flatMap((p) => p.data);
+        if (allMessages.some((m) => m.id === message.id)) {
+          return oldData;
+        }
+
+        newPages[0] = {
+          ...newPages[0],
+          data: [...newPages[0].data, message],
+        };
+      }
+
+      return {
+        ...oldData,
+        pages: newPages,
+      };
+    });
+  }
+
+  /**
+   * キャッシュ内のメッセージを更新
+   * @param roomId ルームID
+   * @param messageId メッセージID
+   * @param updates 更新するフィールド
+   */
+  private updateMessageInCache(
+    roomId: number,
+    messageId: number,
+    updates: Partial<Message>
+  ): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: MessageHistoryResponse[];
+      pageParams: (number | undefined)[];
+    }>(roomMessagesKeys.room(roomId), (oldData) => {
+      if (!oldData) return oldData;
+
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        data: page.data.map((msg) =>
+          msg.id === messageId ? { ...msg, ...updates } : msg
+        ),
+      }));
+
+      return {
+        ...oldData,
+        pages: newPages,
+      };
+    });
+  }
+
+  /**
+   * キャッシュ内のメッセージにリアクションを追加
+   */
+  private addReactionToCache(
+    roomId: number,
+    messageId: number,
+    emoji: string,
+    userId: number
+  ): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: MessageHistoryResponse[];
+      pageParams: (number | undefined)[];
+    }>(roomMessagesKeys.room(roomId), (oldData) => {
+      if (!oldData) return oldData;
+
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        data: page.data.map((msg) => {
+          if (msg.id !== messageId) return msg;
+
+          const reactions = msg.reactions || [];
+          const existingReaction = reactions.find((r) => r.emoji === emoji);
+
+          if (existingReaction) {
+            // 既存のリアクションに追加（重複防止）
+            if (existingReaction.userIds.includes(userId)) {
+              return msg;
+            }
+            return {
+              ...msg,
+              reactions: reactions.map((r) =>
+                r.emoji === emoji
+                  ? { ...r, count: r.count + 1, userIds: [...r.userIds, userId] }
+                  : r
+              ),
+            };
+          } else {
+            // 新しいリアクションを追加
+            return {
+              ...msg,
+              reactions: [...reactions, { emoji, count: 1, userIds: [userId] }],
+            };
+          }
+        }),
+      }));
+
+      return {
+        ...oldData,
+        pages: newPages,
+      };
+    });
+  }
+
+  /**
+   * キャッシュ内のメッセージからリアクションを削除
+   */
+  private removeReactionFromCache(
+    roomId: number,
+    messageId: number,
+    emoji: string,
+    userId: number
+  ): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: MessageHistoryResponse[];
+      pageParams: (number | undefined)[];
+    }>(roomMessagesKeys.room(roomId), (oldData) => {
+      if (!oldData) return oldData;
+
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        data: page.data.map((msg) => {
+          if (msg.id !== messageId) return msg;
+
+          const reactions = msg.reactions || [];
+          const updatedReactions = reactions
+            .map((r) => {
+              if (r.emoji !== emoji) return r;
+              const newUserIds = r.userIds.filter((id) => id !== userId);
+              return { ...r, count: newUserIds.length, userIds: newUserIds };
+            })
+            .filter((r) => r.count > 0); // 0件になったリアクションは削除
+
+          return {
+            ...msg,
+            reactions: updatedReactions,
+          };
+        }),
+      }));
+
+      return {
+        ...oldData,
+        pages: newPages,
+      };
+    });
+  }
+
+  /**
+   * スレッド内のメッセージにリアクションを追加
+   */
+  private addReactionToThreadCache(
+    parentMessageId: number,
+    messageId: number,
+    emoji: string,
+    userId: number,
+  ): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        replies: page.replies.map((msg) => {
+          if (msg.id !== messageId) return msg;
+
+          const reactions = msg.reactions || [];
+          const existingReaction = reactions.find((r) => r.emoji === emoji);
+
+          if (existingReaction) {
+            if (existingReaction.userIds.includes(userId)) {
+              return msg;
+            }
+            return {
+              ...msg,
+              reactions: reactions.map((r) =>
+                r.emoji === emoji
+                  ? { ...r, count: r.count + 1, userIds: [...r.userIds, userId] }
+                  : r,
+              ),
+            };
+          }
+
+          return {
+            ...msg,
+            reactions: [...reactions, { emoji, count: 1, userIds: [userId] }],
+          };
+        }),
+      }));
+
+      return { ...oldData, pages: newPages };
+    });
+  }
+
+  /**
+   * スレッド内のメッセージからリアクションを削除
+   */
+  private removeReactionFromThreadCache(
+    parentMessageId: number,
+    messageId: number,
+    emoji: string,
+    userId: number,
+  ): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        replies: page.replies.map((msg) => {
+          if (msg.id !== messageId) return msg;
+
+          const reactions = msg.reactions || [];
+          const updatedReactions = reactions
+            .map((r) => {
+              if (r.emoji !== emoji) return r;
+              const newUserIds = r.userIds.filter((id) => id !== userId);
+              return { ...r, count: newUserIds.length, userIds: newUserIds };
+            })
+            .filter((r) => r.count > 0);
+
+          return {
+            ...msg,
+            reactions: updatedReactions,
+          };
+        }),
+      }));
+
+      return { ...oldData, pages: newPages };
+    });
+  }
+
+  /**
+   * スレッド返信をキャッシュに追加
+   */
+  private addThreadReplyToCache(parentMessageId: number, reply: Message): void {
+    const queryClient = getQueryClient();
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+      const newPages = [...oldData.pages];
+      if (newPages.length > 0) {
+        const firstPage = { ...newPages[0] };
+        const replaced = firstPage.replies.map((r) => {
+          if (reply.localId && r.localId === reply.localId) {
+            return { ...reply, isPending: false };
+          }
+          if (r.id === reply.id && reply.id > 0) {
+            return { ...r, ...reply, isPending: false };
+          }
+          return r;
+        });
+        const exists =
+          replaced.some((r) => r.id === reply.id) ||
+          replaced.some((r) => reply.localId && r.localId === reply.localId);
+        firstPage.replies = exists ? replaced : [...replaced, reply];
+        newPages[0] = firstPage;
+      }
+      return { ...oldData, pages: newPages };
+    });
+  }
+
+  /**
+   * スレッド返信を更新
+   */
+  private updateThreadReplyInCache(
+    parentMessageId: number,
+    replyId: number,
+    updates: Partial<Message>,
+  ): void {
+    const queryClient = getQueryClient();
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        replies: page.replies.map((reply) =>
+          reply.id === replyId ? { ...reply, ...updates } : reply,
+        ),
+      }));
+      return { ...oldData, pages: newPages };
+    });
+  }
+
+  /**
+   * スレッドサマリーを更新（親メッセージのみ）
+   */
+  private updateThreadSummaryInCache(
+    parentMessageId: number,
+    summary: ThreadSummaryUpdatedPayload,
+  ): void {
+    const queryClient = getQueryClient();
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+      const newPages = oldData.pages.map((page, idx) =>
+        idx === 0
+          ? {
+              ...page,
+              parent: {
+                ...page.parent,
+                threadReplyCount: summary.threadReplyCount,
+                threadLastRepliedAt: summary.threadLastRepliedAt,
+                threadLastRepliedBy: summary.threadLastRepliedBy,
+                threadLastRepliedByUser:
+                  summary.threadLastRepliedBy && summary.threadLastRepliedByUsername
+                    ? {
+                        id: summary.threadLastRepliedBy,
+                        username: summary.threadLastRepliedByUsername,
+                        email: '',
+                      }
+                    : page.parent.threadLastRepliedByUser,
+              },
+            }
+          : page,
+      );
+      return { ...oldData, pages: newPages };
+    });
+  }
+
+  /**
+   * オプティミスティックなスレッド返信を削除
+   */
+  private removeOptimisticThreadReply(parentMessageId: number, localId: string): void {
+    const queryClient = getQueryClient();
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        replies: page.replies.filter((reply) => reply.localId !== localId),
+      }));
+      return { ...oldData, pages: newPages };
+    });
+  }
+}
+
+// シングルトンインスタンスをエクスポート
+export const socketService = new SocketService();

@@ -1,212 +1,830 @@
+/**
+ * @fileoverview Chat WebSocket Gateway
+ * @description リアルタイムチャット機能を提供する WebSocket Gateway
+ */
+
 import { Logger, UseGuards } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import {
-  ConnectedSocket,
-  MessageBody,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
+  SubscribeMessage,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  ConnectedSocket,
+  MessageBody,
 } from '@nestjs/websockets';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
-
+import { PrismaService } from '../prisma/prisma.service';
+import { ChannelMembershipService } from '../chat-rooms/channel-membership.service';
+import { WsJwtAuthGuard } from './guards/ws-jwt-auth.guard';
+import {
+  WsUser,
+  JoinRoomPayload,
+  LeaveRoomPayload,
+  SendMessagePayload,
+  GetOnlineUsersPayload,
+  StartTypingPayload,
+  StopTypingPayload,
+  MessageCreatedPayload,
+  RoomJoinedPayload,
+  RoomLeftPayload,
+  ErrorPayload,
+  UserOnlinePayload,
+  UserOfflinePayload,
+  OnlineUsersListPayload,
+  UserTypingPayload,
+  MemberJoinedPayload,
+  MemberLeftPayload,
+  EditMessagePayload,
+  DeleteMessagePayload,
+  AddReactionPayload,
+  RemoveReactionPayload,
+  MessageUpdatedPayload,
+  MessageDeletedPayload,
+  ReactionAddedPayload,
+  ReactionRemovedPayload,
+  CreateThreadReplyPayload,
+  ThreadReplyAddedPayload,
+  ThreadReplyUpdatedPayload,
+  ThreadReplyDeletedPayload,
+  ThreadSummaryUpdatedPayload,
+} from './types/chat.types';
 import { ChatService } from './chat.service';
-import { WsJwtGuard } from './guards/ws-jwt.guard';
 
 /**
- * JWTトークンから抽出されたユーザー情報
+ * Socket with user data の型定義
  */
-interface ChatUser {
-  /** ユーザー名 */
-  username: string;
-  /** ユーザーID（JWTのsubjectクレーム） */
-  sub: number;
-}
-
-/**
- * 認証情報を含むWebSocketクライアント
- */
-interface SocketWithAuth extends Socket {
+interface AuthenticatedSocket extends Socket {
   data: {
-    /** JWT認証されたユーザー情報 */
-    user?: ChatUser;
+    user: WsUser;
   };
 }
 
 /**
- * リアルタイムチャット機能を提供するWebSocketゲートウェイ
- *
- * クライアントとの双方向通信を管理し、チャットルームへの参加、メッセージ送受信、
- * ルーム離脱などの機能を提供します。すべてのイベントハンドラはJWT認証が必要です。
- *
- * CORS設定により、フロントエンドからのWebSocket接続を許可します。
+ * Chat Gateway クラス
+ * @description WebSocket を通じたリアルタイムチャット機能を提供
  */
 @WebSocketGateway({
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
     credentials: true,
   },
 })
+@UseGuards(WsJwtAuthGuard)
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server!: Server;
+  server: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
 
+  /**
+   * 接続中ユーザーを管理する Map
+   * key: userId, value: Set of socketIds（複数タブ対応）
+   */
+  private connectedUsers: Map<number, Set<string>> = new Map();
+
+  /**
+   * タイピング状態の自動タイムアウトを管理する Map
+   * key: `${roomId}:${userId}`, value: Timeout
+   */
+  private typingTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
+
+  /**
+   * タイピングタイムアウト時間（ミリ秒）
+   * フロントエンドのデバウンス（5秒）より長く設定し、バックアップとして機能
+   */
+  private readonly TYPING_TIMEOUT_MS = 7000;
+
+  /**
+   * ChatGateway のコンストラクタ
+   * @param {PrismaService} prisma - Prisma サービスインスタンス
+   * @param {JwtService} jwtService - JWT サービスインスタンス
+   * @param {ChannelMembershipService} membershipService - メンバーシップサービスインスタンス
+   * @param {ChatService} chatService - チャットサービスインスタンス
+   */
   constructor(
-    private chatService: ChatService,
-    private jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly membershipService: ChannelMembershipService,
+    private readonly chatService: ChatService,
   ) {}
 
-  /**
-   * クライアントがWebSocketに接続した際の処理
-   *
-   * ハンドシェイク時に送信されたJWTトークンを検証し、
-   * 有効な場合はユーザー情報をクライアントのデータに格納します。
-   * トークンが無効または存在しない場合は接続を切断します。
-   *
-   * @param client 接続してきたWebSocketクライアント
-   */
-  handleConnection(client: SocketWithAuth) {
-    try {
-      const token = this.extractToken(client);
-      if (!token) {
-        // Allow connection but subsequent events might be guarded or we can disconnect here.
-        // For strict auth:
-        // client.disconnect();
-        return;
-      }
-      const payload = this.jwtService.verify<ChatUser>(token, {
-        secret: process.env.JWT_SECRET || 'secretKey',
-      });
-      client.data.user = payload;
-      this.logger.log(`Client connected: ${client.id}, User: ${payload.username}`);
-    } catch (e) {
-      this.logger.warn('Connection auth failed, disconnecting...', e);
-      client.disconnect();
-    }
-  }
+  // ========================================
+  // 接続・切断ハンドラ
+  // ========================================
 
   /**
-   * クライアントがWebSocketから切断された際の処理
-   *
-   * 切断ログを記録します。
-   * クライアントが参加していたルームからは自動的に退出されます。
-   *
-   * @param client 切断されたWebSocketクライアント
+   * クライアント接続時の処理
+   * - JWT トークンを検証してユーザー情報を設定
+   * - connectedUsers に追加
+   * - 初回接続時は全クライアントに userOnline を配信
+   * @param {AuthenticatedSocket} client - 接続したクライアント
    */
-  handleDisconnect(client: Socket) {
-    this.logger.log(`Client disconnected: ${client.id}`);
-  }
-
-  /**
-   * チャットルームへの参加リクエストを処理します
-   *
-   * クライアントを指定されたルームに参加させ、ルーム内の他のユーザーと
-   * メッセージをやり取りできるようにします。
-   * 参加完了後、クライアントに'joinedRoom'イベントを送信します。
-   *
-   * @param client ルームに参加するWebSocketクライアント（認証済み）
-   * @param payload ルームID を含むペイロード
-   */
-  @UseGuards(WsJwtGuard)
-  @SubscribeMessage('joinRoom')
-  handleJoinRoom(
-    @ConnectedSocket() client: SocketWithAuth,
-    @MessageBody() payload: { roomId: number },
-  ) {
-    const roomName = `room_${payload.roomId}`;
-    void client.join(roomName);
-    client.emit('joinedRoom', { roomId: payload.roomId });
-    this.logger.log(`User ${client.data.user?.username} joined ${roomName}`);
-  }
-
-  /**
-   * チャットルームからの退出リクエストを処理します
-   *
-   * クライアントを指定されたルームから退出させます。
-   * 退出後、ルーム内のメッセージは受信されなくなります。
-   * 退出完了後、クライアントに'leftRoom'イベントを送信します。
-   *
-   * @param client ルームから退出するWebSocketクライアント（認証済み）
-   * @param payload ルームID を含むペイロード
-   */
-  @UseGuards(WsJwtGuard)
-  @SubscribeMessage('leaveRoom')
-  handleLeaveRoom(
-    @ConnectedSocket() client: SocketWithAuth,
-    @MessageBody() payload: { roomId: number },
-  ) {
-    const roomName = `room_${payload.roomId}`;
-    void client.leave(roomName);
-    client.emit('leftRoom', { roomId: payload.roomId });
-    this.logger.log(`User ${client.data.user?.username} left ${roomName}`);
-  }
-
-  /**
-   * クライアントからのメッセージ送信リクエストを処理します
-   *
-   * 送信されたメッセージをデータベースに保存し、
-   * 同じルームに参加している全てのクライアントに'newMessage'イベントで
-   * メッセージをブロードキャストします。
-   *
-   * 送信者本人にもメッセージが配信されます。
-   * メッセージの保存に失敗した場合は、送信者にエラーイベントを返します。
-   *
-   * @param client メッセージを送信するWebSocketクライアント（認証済み）
-   * @param payload ルームIDとメッセージ内容を含むペイロード
-   */
-  @UseGuards(WsJwtGuard)
-  @SubscribeMessage('sendMessage')
-  async handleSendMessage(
-    @ConnectedSocket() client: SocketWithAuth,
-    @MessageBody() payload: { roomId: number; content: string },
-  ) {
-    const user = client.data.user;
+  async handleConnection(client: AuthenticatedSocket): Promise<void> {
+    // 接続時に JWT を検証してユーザー情報を設定
+    const user = this.authenticateClient(client);
     if (!user) {
-      client.emit('error', { message: 'User not authenticated' });
+      this.logger.warn(`Unauthenticated client attempted to connect: ${client.id}`);
+      client.disconnect();
+      return;
+    }
+    client.data.user = user;
+
+    const userId = user.userId;
+    const socketId = client.id;
+
+    // connectedUsers に追加
+    if (!this.connectedUsers.has(userId)) {
+      this.connectedUsers.set(userId, new Set());
+    }
+    const userSockets = this.connectedUsers.get(userId)!;
+    const isFirstConnection = userSockets.size === 0;
+    userSockets.add(socketId);
+
+    // ユーザー専用ルームに参加（メンション通知等で使用）
+    client.join(`user:${userId}`);
+
+    // 初回接続時のみオンライン通知を配信
+    if (isFirstConnection) {
+      this.server.emit('userOnline', {
+        userId,
+        username: user.username || user.email,
+      } satisfies UserOnlinePayload);
+    }
+
+    this.logger.log(`Client connected: ${socketId}, User: ${userId}`);
+  }
+
+  /**
+   * クライアント切断時の処理
+   * - connectedUsers から削除
+   * - 最後の接続が切れた場合は全クライアントに userOffline を配信
+   * @param {AuthenticatedSocket} client - 切断したクライアント
+   */
+  handleDisconnect(client: AuthenticatedSocket): void {
+    const user = client.data.user;
+    if (!user) return;
+
+    const userId = user.userId;
+    const socketId = client.id;
+
+    const userSockets = this.connectedUsers.get(userId);
+    if (userSockets) {
+      userSockets.delete(socketId);
+
+      // 最後の接続が切れた場合
+      if (userSockets.size === 0) {
+        this.connectedUsers.delete(userId);
+
+        // オフライン通知を配信
+        this.server.emit('userOffline', {
+          userId,
+        } satisfies UserOfflinePayload);
+      }
+    }
+
+    // タイピング状態をクリア
+    this.clearUserTyping(userId);
+
+    this.logger.log(`Client disconnected: ${socketId}, User: ${userId}`);
+  }
+
+  // ========================================
+  // ルーム参加・退出
+  // ========================================
+
+  /**
+   * ルーム参加イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {JoinRoomPayload} payload - ルーム参加ペイロード
+   */
+  @SubscribeMessage('joinRoom')
+  async handleJoinRoom(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: JoinRoomPayload,
+  ): Promise<void> {
+    const { roomId } = payload;
+    const user = client.data.user;
+    if (!user) return;
+
+    // メンバーシップ確認
+    const canAccess = await this.membershipService.canAccessChannel(user.userId, roomId);
+    if (!canAccess) {
+      client.emit('error', {
+        message: 'このチャンネルにアクセスする権限がありません',
+        code: 'CHANNEL_ACCESS_DENIED',
+      } satisfies ErrorPayload);
       return;
     }
 
-    try {
-      const message = await this.chatService.saveMessage(
-        user.sub,
-        payload.roomId,
-        payload.content,
-      );
+    client.join(roomId.toString());
 
-      const roomName = `room_${payload.roomId}`;
-      this.server.to(roomName).emit('newMessage', message);
+    client.emit('roomJoined', { roomId } satisfies RoomJoinedPayload);
+
+    this.logger.log(`User ${user.userId} joined room ${roomId}`);
+  }
+
+  /**
+   * ルーム退出イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {LeaveRoomPayload} payload - ルーム退出ペイロード
+   */
+  @SubscribeMessage('leaveRoom')
+  handleLeaveRoom(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: LeaveRoomPayload,
+  ): void {
+    const { roomId } = payload;
+    client.leave(roomId.toString());
+
+    client.emit('roomLeft', { roomId } satisfies RoomLeftPayload);
+
+    this.logger.log(`User ${client.data.user?.userId} left room ${roomId}`);
+  }
+
+  // ========================================
+  // メッセージ送信
+  // ========================================
+
+  /**
+   * メッセージ送信イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {SendMessagePayload} payload - メッセージ送信ペイロード
+   */
+  @SubscribeMessage('sendMessage')
+  async handleSendMessage(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: SendMessagePayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { roomId, content, localId } = payload;
+
+    try {
+      // メンバーシップ確認
+      const canAccess = await this.membershipService.canAccessChannel(user.userId, roomId);
+      if (!canAccess) {
+        client.emit('error', {
+          message: 'このチャンネルにメッセージを送信する権限がありません',
+          code: 'CHANNEL_ACCESS_DENIED',
+          localId,
+        } satisfies ErrorPayload);
+        return;
+      }
+
+      // DB にメッセージを保存
+      const message = await this.prisma.message.create({
+        data: {
+          content,
+          userId: user.userId,
+          chatRoomId: roomId,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      // タイピング状態をクリア
+      const typingKey = `${roomId}:${user.userId}`;
+      this.clearTypingTimeout(typingKey);
+
+      // ルーム全体に配信（localId を含める）
+      const messagePayload: MessageCreatedPayload = {
+        id: message.id,
+        roomId: message.chatRoomId,
+        parentMessageId: null,
+        userId: message.userId,
+        username: message.user.username || message.user.email,
+        content: message.content,
+        createdAt: message.createdAt.toISOString(),
+        localId,
+        threadReplyCount: 0,
+        threadLastRepliedAt: null,
+        threadLastRepliedBy: null,
+      };
+
+      this.server.to(roomId.toString()).emit('messageCreated', messagePayload);
     } catch (error) {
-      this.logger.error('Error saving message:', error);
-      client.emit('error', { message: 'Failed to send message' });
+      this.logger.error(`Failed to send message: ${error}`);
+
+      // エラー時も localId を含めて通知
+      client.emit('error', {
+        message: 'メッセージの送信に失敗しました',
+        code: 'MESSAGE_SEND_FAILED',
+        localId,
+      } satisfies ErrorPayload);
     }
   }
 
   /**
-   * WebSocketハンドシェイクからJWTトークンを抽出します
-   *
-   * 以下の順序でトークンを検索します：
-   * 1. handshake.auth.token（Socket.IOのauth設定）
-   * 2. handshake.headers.authorization（HTTPヘッダー）
-   *
-   * Bearer形式のトークンから'Bearer'プレフィックスを除去して返します。
-   *
-   * @param client WebSocketクライアント
-   * @returns 抽出されたJWTトークン（存在しない場合はundefined）
+   * スレッド返信送信イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {CreateThreadReplyPayload} payload - スレッド返信ペイロード
    */
-  private extractToken(client: Socket): string | undefined {
-    const auth = client.handshake.auth as { token?: string } | undefined;
-    if (auth?.token) {
-      const [type, token] = auth.token.split(' ');
-      return type === 'Bearer' ? token : auth.token;
+  @SubscribeMessage('createThreadReply')
+  async handleCreateThreadReply(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: CreateThreadReplyPayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { parentMessageId, content, localId } = payload;
+
+    try {
+      const result = await this.chatService.createThreadReply(parentMessageId, user.userId, content);
+
+      const replyPayload: ThreadReplyAddedPayload = {
+        parentMessageId,
+        roomId: result.roomId,
+        reply: {
+          id: result.reply.id,
+          roomId: result.reply.chatRoomId,
+          parentMessageId,
+          userId: result.reply.userId,
+          username: result.reply.user.username || result.reply.user.email,
+          content: result.reply.content,
+          createdAt: result.reply.createdAt.toISOString(),
+          localId,
+        },
+      };
+
+      const summaryPayload: ThreadSummaryUpdatedPayload = {
+        parentMessageId,
+        roomId: result.roomId,
+        threadReplyCount: result.threadSummary.threadReplyCount,
+        threadLastRepliedAt: result.threadSummary.threadLastRepliedAt.toISOString(),
+        threadLastRepliedBy: result.threadSummary.threadLastRepliedBy,
+        threadLastRepliedByUsername: user.username || user.email,
+      };
+
+      this.server.to(result.roomId.toString()).emit('threadReplyAdded', replyPayload);
+      this.server.to(result.roomId.toString()).emit('threadSummaryUpdated', summaryPayload);
+    } catch (error) {
+      this.logger.error(`Failed to create thread reply: ${error}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'スレッド返信の送信に失敗しました';
+      client.emit('error', {
+        message: errorMessage,
+        code: 'THREAD_REPLY_FAILED',
+        localId,
+        parentMessageId,
+      } satisfies ErrorPayload);
     }
-    const headers = client.handshake.headers;
-    if (headers.authorization) {
-      const [type, token] = headers.authorization.split(' ');
-      return type === 'Bearer' ? token : headers.authorization;
+  }
+
+  // ========================================
+  // メッセージ編集・削除
+  // ========================================
+
+  /**
+   * メッセージ編集イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {EditMessagePayload} payload - メッセージ編集ペイロード
+   */
+  @SubscribeMessage('editMessage')
+  async handleEditMessage(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: EditMessagePayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { messageId, content } = payload;
+
+    try {
+      const result = await this.chatService.editMessage(messageId, user.userId, content);
+
+      if (result.parentMessageId) {
+        this.server.to(result.roomId.toString()).emit('threadReplyUpdated', {
+          parentMessageId: result.parentMessageId,
+          roomId: result.roomId,
+          replyId: result.id,
+          content: result.content,
+          isEdited: result.isEdited,
+          editedAt: result.editedAt,
+        } satisfies ThreadReplyUpdatedPayload);
+      } else {
+        // ルーム全体に配信
+        this.server.to(result.roomId.toString()).emit('messageUpdated', {
+          id: result.id,
+          roomId: result.roomId,
+          content: result.content,
+          isEdited: result.isEdited,
+          editedAt: result.editedAt,
+        } satisfies MessageUpdatedPayload);
+      }
+
+      this.logger.log(`Message ${messageId} edited by user ${user.userId}`);
+    } catch (error) {
+      this.logger.error(`Failed to edit message: ${error}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'メッセージの編集に失敗しました';
+      client.emit('error', {
+        message: errorMessage,
+        code: 'MESSAGE_EDIT_FAILED',
+      } satisfies ErrorPayload);
     }
-    return undefined;
+  }
+
+  /**
+   * メッセージ削除イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {DeleteMessagePayload} payload - メッセージ削除ペイロード
+   */
+  @SubscribeMessage('deleteMessage')
+  async handleDeleteMessage(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: DeleteMessagePayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { messageId } = payload;
+
+    try {
+      const result = await this.chatService.deleteMessage(messageId, user.userId);
+
+      if (result.parentMessageId) {
+        this.server.to(result.roomId.toString()).emit('threadReplyDeleted', {
+          parentMessageId: result.parentMessageId,
+          roomId: result.roomId,
+          replyId: result.id,
+        } satisfies ThreadReplyDeletedPayload);
+
+        if (result.threadSummary) {
+          this.server.to(result.roomId.toString()).emit('threadSummaryUpdated', {
+            parentMessageId: result.parentMessageId,
+            roomId: result.roomId,
+            threadReplyCount: result.threadSummary.threadReplyCount,
+            threadLastRepliedAt: result.threadSummary.threadLastRepliedAt,
+            threadLastRepliedBy: result.threadSummary.threadLastRepliedBy,
+          } satisfies ThreadSummaryUpdatedPayload);
+        }
+      } else {
+        // ルーム全体に配信
+        this.server.to(result.roomId.toString()).emit('messageDeleted', {
+          id: result.id,
+          roomId: result.roomId,
+        } satisfies MessageDeletedPayload);
+      }
+
+      this.logger.log(`Message ${messageId} deleted by user ${user.userId}`);
+    } catch (error) {
+      this.logger.error(`Failed to delete message: ${error}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'メッセージの削除に失敗しました';
+      client.emit('error', {
+        message: errorMessage,
+        code: 'MESSAGE_DELETE_FAILED',
+      } satisfies ErrorPayload);
+    }
+  }
+
+  // ========================================
+  // リアクション
+  // ========================================
+
+  /**
+   * リアクション追加イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {AddReactionPayload} payload - リアクション追加ペイロード
+   */
+  @SubscribeMessage('addReaction')
+  async handleAddReaction(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: AddReactionPayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { messageId, emoji } = payload;
+
+    try {
+      const result = await this.chatService.addReaction(messageId, user.userId, emoji);
+
+      // ルーム全体に配信
+      this.server.to(result.roomId.toString()).emit('reactionAdded', {
+        messageId: result.messageId,
+        roomId: result.roomId,
+        parentMessageId: result.parentMessageId,
+        emoji: result.emoji,
+        userId: result.userId,
+        username: result.username,
+      } satisfies ReactionAddedPayload);
+
+      this.logger.debug(`Reaction ${emoji} added to message ${messageId} by user ${user.userId}`);
+    } catch (error) {
+      this.logger.error(`Failed to add reaction: ${error}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'リアクションの追加に失敗しました';
+      client.emit('error', {
+        message: errorMessage,
+        code: 'REACTION_ADD_FAILED',
+      } satisfies ErrorPayload);
+    }
+  }
+
+  /**
+   * リアクション削除イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {RemoveReactionPayload} payload - リアクション削除ペイロード
+   */
+  @SubscribeMessage('removeReaction')
+  async handleRemoveReaction(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: RemoveReactionPayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { messageId, emoji } = payload;
+
+    try {
+      const result = await this.chatService.removeReaction(messageId, user.userId, emoji);
+
+      // ルーム全体に配信
+      this.server.to(result.roomId.toString()).emit('reactionRemoved', {
+        messageId: result.messageId,
+        roomId: result.roomId,
+        parentMessageId: result.parentMessageId,
+        emoji: result.emoji,
+        userId: result.userId,
+      } satisfies ReactionRemovedPayload);
+
+      this.logger.debug(
+        `Reaction ${emoji} removed from message ${messageId} by user ${user.userId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to remove reaction: ${error}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'リアクションの削除に失敗しました';
+      client.emit('error', {
+        message: errorMessage,
+        code: 'REACTION_REMOVE_FAILED',
+      } satisfies ErrorPayload);
+    }
+  }
+
+  // ========================================
+  // プレゼンス
+  // ========================================
+
+  /**
+   * オンラインユーザー一覧を取得
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {GetOnlineUsersPayload} _payload - ペイロード（roomId オプション）
+   */
+  @SubscribeMessage('getOnlineUsers')
+  handleGetOnlineUsers(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() _payload: GetOnlineUsersPayload,
+  ): void {
+    // roomId が指定された場合はフィルタリング
+    // 注: 現状はルームメンバーシップがないため、全ユーザーを返す
+    // Phase 3 で RoomMember 実装後にフィルタリング追加
+    const onlineUserIds = Array.from(this.connectedUsers.keys());
+
+    client.emit('onlineUsersList', {
+      userIds: onlineUserIds,
+    } satisfies OnlineUsersListPayload);
+  }
+
+  /**
+   * 指定ユーザーがオンラインかどうかを確認
+   * @param {number} userId - ユーザー ID
+   * @returns {boolean} オンラインなら true
+   */
+  isUserOnline(userId: number): boolean {
+    return this.connectedUsers.has(userId);
+  }
+
+  /**
+   * オンラインユーザー数を取得
+   * @returns {number} オンラインユーザー数
+   */
+  getOnlineUserCount(): number {
+    return this.connectedUsers.size;
+  }
+
+  // ========================================
+  // タイピングインジケーター
+  // ========================================
+
+  /**
+   * タイピング開始イベントハンドラ
+   * - ルームの他メンバーに通知
+   * - 5秒後に自動で停止
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {StartTypingPayload} payload - タイピング開始ペイロード
+   */
+  @SubscribeMessage('startTyping')
+  handleStartTyping(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: StartTypingPayload,
+  ): void {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { roomId } = payload;
+    const userId = user.userId;
+    const key = `${roomId}:${userId}`;
+
+    // 既存のタイムアウトをクリア
+    this.clearTypingTimeout(key);
+
+    // ルームの他メンバーに通知（自分以外）
+    client.to(roomId.toString()).emit('userTyping', {
+      roomId,
+      userId,
+      username: user.username || user.email,
+      isTyping: true,
+    } satisfies UserTypingPayload);
+
+    // 5秒後に自動でタイピング停止
+    const timeout = setTimeout(() => {
+      this.emitStopTyping(client, roomId, userId, user.username || user.email);
+      this.typingTimeouts.delete(key);
+    }, this.TYPING_TIMEOUT_MS);
+
+    this.typingTimeouts.set(key, timeout);
+  }
+
+  /**
+   * タイピング終了イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {StopTypingPayload} payload - タイピング終了ペイロード
+   */
+  @SubscribeMessage('stopTyping')
+  handleStopTyping(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: StopTypingPayload,
+  ): void {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { roomId } = payload;
+    const userId = user.userId;
+    const key = `${roomId}:${userId}`;
+
+    // タイムアウトをクリア
+    this.clearTypingTimeout(key);
+
+    // タイピング停止を通知
+    this.emitStopTyping(client, roomId, userId, user.username || user.email);
+  }
+
+  // ========================================
+  // プライベートメソッド
+  // ========================================
+
+  /**
+   * タイピング停止を配信
+   * @param {AuthenticatedSocket} client - クライアント
+   * @param {number} roomId - ルーム ID
+   * @param {number} userId - ユーザー ID
+   * @param {string} username - ユーザー名
+   */
+  private emitStopTyping(
+    client: AuthenticatedSocket,
+    roomId: number,
+    userId: number,
+    username: string,
+  ): void {
+    client.to(roomId.toString()).emit('userTyping', {
+      roomId,
+      userId,
+      username,
+      isTyping: false,
+    } satisfies UserTypingPayload);
+  }
+
+  /**
+   * タイピングタイムアウトをクリア
+   * @param {string} key - タイムアウトキー（`${roomId}:${userId}`）
+   */
+  private clearTypingTimeout(key: string): void {
+    const existingTimeout = this.typingTimeouts.get(key);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      this.typingTimeouts.delete(key);
+    }
+  }
+
+  /**
+   * ユーザーの全タイピング状態をクリア（切断時に使用）
+   * @param {number} userId - ユーザー ID
+   */
+  private clearUserTyping(userId: number): void {
+    for (const [key, timeout] of this.typingTimeouts.entries()) {
+      if (key.endsWith(`:${userId}`)) {
+        clearTimeout(timeout);
+        this.typingTimeouts.delete(key);
+      }
+    }
+  }
+
+  /**
+   * クライアントの JWT トークンを検証してユーザー情報を返す
+   * @param {Socket} client - Socket.IO クライアント
+   * @returns {WsUser | null} ユーザー情報、認証失敗時は null
+   */
+  private authenticateClient(client: Socket): WsUser | null {
+    const token = this.extractToken(client);
+    if (!token) {
+      return null;
+    }
+
+    try {
+      const payload = this.jwtService.verify<{ sub: number; email: string }>(token);
+      return {
+        userId: payload.sub,
+        email: payload.email,
+      };
+    } catch {
+      this.logger.debug(`JWT verification failed for client: ${client.id}`);
+      return null;
+    }
+  }
+
+  /**
+   * ソケットから JWT トークンを抽出する
+   * @param {Socket} client - Socket.IO クライアント
+   * @returns {string | null} 抽出されたトークン、または null
+   */
+  private extractToken(client: Socket): string | null {
+    // 1. auth フィールドから取得（推奨）
+    const authToken = client.handshake.auth?.token as string | undefined;
+    if (authToken) {
+      return this.parseBearer(authToken);
+    }
+
+    // 2. Authorization ヘッダから取得
+    const authHeader = client.handshake.headers?.authorization;
+    if (authHeader) {
+      return this.parseBearer(authHeader);
+    }
+
+    // 3. クエリパラメータから取得（フォールバック）
+    const queryToken = client.handshake.query?.token;
+    if (typeof queryToken === 'string') {
+      return queryToken;
+    }
+
+    return null;
+  }
+
+  /**
+   * Bearer トークン形式からトークン部分を抽出する
+   * @param {string} value - Bearer トークン文字列
+   * @returns {string | null} トークン部分、または null
+   */
+  private parseBearer(value: string): string | null {
+    if (value.startsWith('Bearer ')) {
+      return value.substring(7);
+    }
+    return value;
+  }
+
+  // ========================================
+  // メンバーシップイベント配信
+  // ========================================
+
+  /**
+   * メンバー参加イベントを配信
+   * @param {number} roomId - ルーム ID
+   * @param {number} userId - 参加したユーザー ID
+   * @param {string} username - ユーザー名
+   */
+  emitMemberJoined(roomId: number, userId: number, username: string): void {
+    this.server.to(roomId.toString()).emit('memberJoined', {
+      roomId,
+      userId,
+      username,
+    } satisfies MemberJoinedPayload);
+  }
+
+  /**
+   * メンバー退出イベントを配信
+   * @param {number} roomId - ルーム ID
+   * @param {number} userId - 退出したユーザー ID
+   * @param {string} username - ユーザー名
+   * @param {boolean} kicked - キックされた場合は true
+   */
+  emitMemberLeft(roomId: number, userId: number, username: string, kicked = false): void {
+    this.server.to(roomId.toString()).emit('memberLeft', {
+      roomId,
+      userId,
+      username,
+      kicked,
+    } satisfies MemberLeftPayload);
   }
 }

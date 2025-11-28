@@ -1,81 +1,96 @@
-// @ts-check
 import eslint from '@eslint/js';
-import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
-import globals from 'globals';
-import tseslint from 'typescript-eslint';
-import simpleImportSort from 'eslint-plugin-simple-import-sort';
-import unusedImports from 'eslint-plugin-unused-imports';
-import importPlugin from 'eslint-plugin-import';
+import tseslint from '@typescript-eslint/eslint-plugin';
+import tsparser from '@typescript-eslint/parser';
+import prettierConfig from 'eslint-config-prettier';
+import prettierPlugin from 'eslint-plugin-prettier';
 
-export default tseslint.config(
-  {
-    ignores: ['eslint.config.mjs'],
-  },
+export default [
   eslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
-  eslintPluginPrettierRecommended,
   {
-    plugins: {
-      'simple-import-sort': simpleImportSort,
-      'unused-imports': unusedImports,
-      'import': importPlugin,
-    },
+    files: ['**/*.ts'],
+    ignores: ['**/*.spec.ts', 'jest.config.ts'],
     languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.jest,
-      },
-      sourceType: 'commonjs',
+      parser: tsparser,
       parserOptions: {
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
+        project: './tsconfig.json',
+        sourceType: 'module',
       },
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint,
+      prettier: prettierPlugin,
     },
     rules: {
-      // Basic
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
-      
-      // TypeScript
+      // TypeScript rules
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn',
-      '@typescript-eslint/no-unused-vars': 'off', // Handled by unused-imports
-
-      // Import Sorting
-      'simple-import-sort/imports': 'error',
-      'simple-import-sort/exports': 'error',
-
-      // Unused Imports
-      'unused-imports/no-unused-imports': 'error',
-      'unused-imports/no-unused-vars': [
-        'warn',
-        {
-          vars: 'all',
-          varsIgnorePattern: '^_',
-          args: 'after-used',
-          argsIgnorePattern: '^_',
-        },
+      '@typescript-eslint/explicit-function-return-type': 'warn',
+      '@typescript-eslint/explicit-module-boundary-types': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
 
-      // Import Rules
-      'import/first': 'error',
-      'import/newline-after-import': 'error',
-      'import/no-duplicates': 'error',
-      
-      // Prettier
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      // Prettier integration
+      'prettier/prettier': 'error',
+
+      // General rules
+      'no-console': 'warn',
+      'no-unused-vars': 'off', // Use TypeScript version instead
+    },
+  },
+  // Test files configuration
+  {
+    files: ['**/*.spec.ts'],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        sourceType: 'module',
+      },
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        // Jest globals
+        jest: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint,
+      prettier: prettierPlugin,
+    },
+    rules: {
+      // Prettier integration
+      'prettier/prettier': 'error',
+
+      // Relaxed rules for tests
+      'no-console': 'off',
+      'no-unused-vars': 'off',
     },
   },
   {
-    // Relax rules for testing files
-    files: ['**/*.spec.ts', 'test/**/*.ts'],
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/unbound-method': 'off',
-    },
+    ignores: ['dist/**', 'node_modules/**', '*.js', '*.mjs', 'jest.config.ts'],
   },
-);
+  prettierConfig,
+];

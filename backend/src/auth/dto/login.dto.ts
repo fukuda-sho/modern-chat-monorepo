@@ -1,30 +1,38 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+/**
+ * @fileoverview ログイン用 DTO
+ * @description ログインリクエストのバリデーションを定義
+ */
+
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 
 /**
- * ログインリクエストのデータ転送オブジェクト
- *
- * ユーザー認証に必要な情報を検証します。
+ * ログイン用データ転送オブジェクト
+ * @description ログイン時に必要なフィールドを定義
  */
 export class LoginDto {
   /**
    * メールアドレス
-   *
-   * ログイン時の識別子です。
-   * 登録時に使用したメールアドレスを入力してください。
+   * @description 有効なメールアドレス形式である必要がある
    */
+  @ApiProperty({
+    example: 'user@example.com',
+    description: '登録済みのメールアドレス',
+    format: 'email',
+  })
   @IsEmail()
   @IsNotEmpty()
-  email!: string;
+  email: string;
 
   /**
    * パスワード
-   *
-   * 登録時に設定したパスワードを入力してください。
-   * 6文字以上である必要があります。
+   * @description 空文字は許可されない
    */
+  @ApiProperty({
+    example: 'password123',
+    description: 'パスワード',
+  })
   @IsString()
   @IsNotEmpty()
-  @MinLength(6)
-  password!: string;
+  password: string;
 }
-

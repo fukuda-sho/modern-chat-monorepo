@@ -1,78 +1,122 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { UsersService } from '../users/users.service';
+/**
+ * @fileoverview 認証サービス
+ * @description ユーザー登録・ログイン・JWT 発行のビジネスロジックを提供
+ */
+
+import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { LoginDto, SignupDto, LoginResponseDto, UserResponseDto } from './dto';
+import { PrismaService } from '../prisma/prisma.service';
+import { SignupDto } from './dto/signup.dto';
+import { LoginDto } from './dto/login.dto';
 
 /**
- * 認証機能を提供するサービス
- *
- * ユーザーの登録、ログイン、パスワード検証を担当します。
- * パスワードはbcryptでハッシュ化され、JWTトークンで認証を行います。
+ * パスワードを除外したユーザー情報の型定義
+ */
+interface UserWithoutPassword {
+  id: number;
+  username: string;
+  email: string;
+  createdAt: Date;
+}
+
+/**
+ * ログインレスポンスの型定義
+ */
+interface LoginResponse {
+  accessToken: string;
+}
+
+/**
+ * 認証サービスクラス
+ * @description signup, login のビジネスロジックを実装
  */
 @Injectable()
 export class AuthService {
+  /**
+   * AuthService のコンストラクタ
+   * @param {PrismaService} prisma - Prisma サービスインスタンス
+   * @param {JwtService} jwtService - JWT サービスインスタンス
+   */
   constructor(
-    private usersService: UsersService,
+    private prisma: PrismaService,
     private jwtService: JwtService,
   ) {}
 
   /**
-   * ユーザーの認証情報を検証します
-   *
-   * メールアドレスとパスワードの組み合わせが正しいか確認します。
-   * パスワードはbcryptで比較され、認証に成功した場合はパスワードフィールドを除いた
-   * ユーザー情報を返します。
-   *
-   * @param email ユーザーのメールアドレス
-   * @param pass 検証する平文パスワード
-   * @returns 認証成功時はユーザー情報（パスワード除く）、失敗時はnull
+   * 新規ユーザーを登録する
+   * @param {SignupDto} signupDto - サインアップ用 DTO
+   * @returns {Promise<UserWithoutPassword>} パスワードを除外したユーザー情報
+   * @throws {ConflictException} メールアドレスまたはユーザー名が既に存在する場合
    */
-  async validateUser(email: string, pass: string): Promise<Omit<User, 'password'> | null> {
-    const user = await this.usersService.findOne({ email });
-    if (user && (await bcrypt.compare(pass, user.password))) {
-      const { password: _password, ...result } = user;
-      return result;
-    }
-    return null;
-  }
+  async signup(signupDto: SignupDto): Promise<UserWithoutPassword> {
+    const { email, password, username } = signupDto;
 
-  /**
-   * ユーザーのログイン処理を実行します
-   *
-   * メールアドレスとパスワードで認証を行い、成功した場合はJWTトークンを発行します。
-   * トークンにはユーザー名とユーザーIDが含まれ、有効期限は設定ファイルで定義されます（デフォルト: 24時間）。
-   *
-   * @param loginDto ログイン情報（メールアドレスとパスワード）
-   * @returns JWTアクセストークン
-   * @throws UnauthorizedException メールアドレスまたはパスワードが正しくない場合
-   */
-  async login(loginDto: LoginDto): Promise<LoginResponseDto> {
-    const user = await this.validateUser(loginDto.email, loginDto.password);
-    if (!user) {
-      throw new UnauthorizedException();
-    }
-    const payload = { username: user.username, sub: user.id };
-    return {
-      access_token: this.jwtService.sign(payload),
-    };
-  }
+    // メールアドレスの重複チェック
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+    });
 
-  /**
-   * 新規ユーザーを登録します
-   *
-   * パスワードは自動的にbcryptでハッシュ化されます。
-   * メールアドレスの重複チェックはUsersServiceで行われます。
-   * 登録後、パスワードフィールドは除外されたユーザー情報を返します。
-   *
-   * @param signupDto ユーザー登録情報（メールアドレス、パスワード、表示名）
-   * @returns 登録されたユーザー情報（パスワード除く）
-   * @throws ConflictException メールアドレスが既に使用されている場合
-   */
-  async signup(signupDto: SignupDto): Promise<UserResponseDto> {
-    const user = await this.usersService.create(signupDto);
-    const { password: _password, ...result } = user;
+    if (existingUser) {
+      throw new ConflictException('Email already exists');
+    }
+
+    // ユーザー名の重複チェック
+    const existingUsername = await this.prisma.user.findUnique({
+      where: { username },
+    });
+
+    if (existingUsername) {
+      throw new ConflictException('Username already exists');
+    }
+
+    // パスワードをハッシュ化
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // ユーザーを作成
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        username,
+        password: hashedPassword,
+      },
+    });
+
+    // パスワードを除外して返却
+    const { password: _, ...result } = user;
     return result;
+  }
+
+  /**
+   * ユーザーをログインさせ、JWT トークンを発行する
+   * @param {LoginDto} loginDto - ログイン用 DTO
+   * @returns {Promise<LoginResponse>} アクセストークンを含むオブジェクト
+   * @throws {UnauthorizedException} メールアドレスが存在しない、またはパスワードが一致しない場合
+   */
+  async login(loginDto: LoginDto): Promise<LoginResponse> {
+    const { email, password } = loginDto;
+
+    // メールアドレスでユーザーを検索
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // パスワードを検証
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // JWT を発行
+    const payload = { sub: user.id, email: user.email };
+    const accessToken = this.jwtService.sign(payload);
+
+    return { accessToken };
   }
 }

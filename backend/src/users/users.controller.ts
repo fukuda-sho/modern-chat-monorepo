@@ -1,38 +1,58 @@
-import { Controller, Get, Request, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+/**
+ * @fileoverview ユーザーコントローラー
+ * @description /users エンドポイントのルーティングを定義
+ */
+
+import { Controller, Get, UseGuards, Request } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AuthenticatedUser } from '../auth/strategies/jwt.strategy';
+import { UnauthorizedResponseDto } from '../common/dto';
 
 /**
- * JWTトークンで認証されたユーザー情報を含むリクエストインターフェース
+ * 認証済みリクエストの型定義
+ * @description request.user を含むリクエストオブジェクト
  */
-interface RequestWithUser {
-  /** JwtStrategyによって検証・付与されたユーザー情報 */
-  user: { userId: number; username: string };
+interface RequestWithUser extends Request {
+  user: AuthenticatedUser;
 }
 
 /**
- * ユーザー情報関連のAPIエンドポイントを提供するコントローラー
- *
- * すべてのエンドポイントはJWT認証が必要です。
+ * ユーザーコントローラークラス
+ * @description ユーザー情報取得エンドポイントを提供
  */
+@ApiTags('users')
+@ApiBearerAuth('access-token')
 @Controller('users')
 export class UsersController {
+  /**
+   * UsersController のコンストラクタ
+   * @param {UsersService} usersService - ユーザーサービスインスタンス
+   */
   constructor(private usersService: UsersService) {}
 
   /**
-   * 現在のユーザー情報を取得するエンドポイント
-   *
-   * JWTトークンから抽出されたユーザー情報を返却します。
-   * このエンドポイントは認証されたユーザーのみアクセス可能です。
-   *
-   * @param req JwtAuthGuardによって検証済みのリクエスト
-   * @returns 現在のユーザーID とユーザー名
-   * @throws UnauthorizedException JWTトークンが無効または期限切れの場合
+   * ログイン中のユーザー情報を取得する
+   * @param {RequestWithUser} req - 認証済みリクエスト
+   * @returns {Promise<object>} パスワードを除外したユーザー情報
    */
-  @UseGuards(JwtAuthGuard)
   @Get('me')
-  getProfile(@Request() req: RequestWithUser) {
-    // req.user is populated by JwtStrategy
-    return req.user;
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: '自身のユーザー情報取得',
+    description: 'JWT トークンで認証されたユーザー自身の情報を取得します。',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '取得成功。パスワードを除外したユーザー情報を返却。',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '未認証（トークンが無効または期限切れ）',
+    type: UnauthorizedResponseDto,
+  })
+  async getMe(@Request() req: RequestWithUser): Promise<object> {
+    return this.usersService.findById(req.user.id);
   }
 }
