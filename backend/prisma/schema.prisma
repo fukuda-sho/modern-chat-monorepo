@@ -36,6 +36,7 @@ model User {
   createdRooms       ChatRoom[]        @relation("CreatedRooms")
   channelMemberships ChannelMember[]
   reactions          Reaction[]
+  threadLastReplies  Message[]         @relation("MessageThreadLastReply")
 
   @@map("users")
 }
@@ -65,6 +66,11 @@ model Message {
   userId     Int       @map("user_id")
   chatRoomId Int       @map("chat_room_id")
   createdAt  DateTime  @default(now()) @map("created_at")
+  // Phase 3: スレッド
+  parentMessageId     Int?      @map("parent_message_id")
+  threadReplyCount    Int       @default(0) @map("thread_reply_count")
+  threadLastRepliedAt DateTime? @map("thread_last_replied_at")
+  threadLastRepliedBy Int?      @map("thread_last_replied_by")
   // Phase 2: 編集/削除フィールド
   isEdited   Boolean   @default(false) @map("is_edited")
   editedAt   DateTime? @map("edited_at")
@@ -74,10 +80,14 @@ model Message {
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   chatRoom  ChatRoom   @relation(fields: [chatRoomId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   reactions Reaction[]
+  parentMessage         Message? @relation("MessageThread", fields: [parentMessageId], references: [id], onDelete: Cascade)
+  threadReplies         Message[] @relation("MessageThread")
+  threadLastRepliedByUser User?    @relation("MessageThreadLastReply", fields: [threadLastRepliedBy], references: [id], onDelete: SetNull)
 
   @@index([userId], map: "idx_messages_user_id")
   @@index([chatRoomId], map: "idx_messages_chat_room_id")
   @@index([chatRoomId, createdAt], map: "idx_messages_room_created")
+  @@index([parentMessageId, createdAt], map: "idx_messages_parent_created")
   @@map("messages")
 }
 

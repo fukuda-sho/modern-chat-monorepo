@@ -14,6 +14,9 @@ import { RoomHeader } from './room-header';
 import { MessageList } from './message-list';
 import { MessageInput } from './message-input';
 import { TypingIndicator } from './typing-indicator';
+import { ThreadPane } from './thread-pane';
+import { useChatStore } from '../store/chat-store';
+import type { Message } from '@/types';
 
 /** チャットルームの Props 型 */
 type ChatRoomProps = {
@@ -36,6 +39,8 @@ type ChatRoomProps = {
 export function ChatRoom({ roomId }: ChatRoomProps): React.JSX.Element {
   const { joinRoom, leaveRoom, sendMessage, isConnected, connectionStatus } =
     useChatSocket();
+  const activeThreadParentId = useChatStore((state) => state.activeThreadParentId);
+  const setActiveThread = useChatStore((state) => state.setActiveThread);
 
   // ルーム情報を API から取得
   const {
@@ -54,11 +59,12 @@ export function ChatRoom({ roomId }: ChatRoomProps): React.JSX.Element {
     }
 
     joinRoom(roomId);
+    setActiveThread(null);
 
     return () => {
       leaveRoom(roomId);
     };
-  }, [roomId, isConnected, room, joinRoom, leaveRoom]);
+  }, [roomId, isConnected, room, joinRoom, leaveRoom, setActiveThread]);
 
   const handleSendMessage = (content: string): void => {
     if (!isConnected) {
@@ -66,6 +72,14 @@ export function ChatRoom({ roomId }: ChatRoomProps): React.JSX.Element {
       return;
     }
     sendMessage(roomId, content);
+  };
+
+  const handleOpenThread = (message: Message): void => {
+    setActiveThread(message.id);
+  };
+
+  const handleCloseThread = (): void => {
+    setActiveThread(null);
   };
 
   // ルーム読み込み中
@@ -92,34 +106,40 @@ export function ChatRoom({ roomId }: ChatRoomProps): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <RoomHeader roomId={roomId} roomName={room.name} />
+    <div className="flex h-full">
+      <div className="flex flex-1 flex-col">
+        <RoomHeader roomId={roomId} roomName={room.name} />
 
-      {/* 接続中の場合はローディング表示 */}
-      {connectionStatus === 'connecting' && (
-        <div className="bg-muted/50 flex items-center justify-center gap-2 py-2 text-sm">
-          <div className="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
-          <span className="text-muted-foreground">接続中...</span>
-        </div>
+        {/* 接続中の場合はローディング表示 */}
+        {connectionStatus === 'connecting' && (
+          <div className="bg-muted/50 flex items-center justify-center gap-2 py-2 text-sm">
+            <div className="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
+            <span className="text-muted-foreground">接続中...</span>
+          </div>
+        )}
+
+        {/* 接続エラーの場合は警告表示 */}
+        {connectionStatus === 'error' && (
+          <div className="bg-destructive/10 text-destructive flex items-center justify-center py-2 text-sm">
+            接続エラーが発生しました。ページを再読み込みしてください。
+          </div>
+        )}
+
+        <MessageList roomId={roomId} className="flex-1" onOpenThread={handleOpenThread} />
+
+        {/* タイピングインジケーター */}
+        <TypingIndicator roomId={roomId} />
+
+        <MessageInput
+          roomId={roomId}
+          onSend={handleSendMessage}
+          disabled={!isConnected}
+        />
+      </div>
+
+      {activeThreadParentId && (
+        <ThreadPane parentMessageId={activeThreadParentId} onClose={handleCloseThread} />
       )}
-
-      {/* 接続エラーの場合は警告表示 */}
-      {connectionStatus === 'error' && (
-        <div className="bg-destructive/10 text-destructive flex items-center justify-center py-2 text-sm">
-          接続エラーが発生しました。ページを再読み込みしてください。
-        </div>
-      )}
-
-      <MessageList roomId={roomId} className="flex-1" />
-
-      {/* タイピングインジケーター */}
-      <TypingIndicator roomId={roomId} />
-
-      <MessageInput
-        roomId={roomId}
-        onSend={handleSendMessage}
-        disabled={!isConnected}
-      />
     </div>
   );
 }

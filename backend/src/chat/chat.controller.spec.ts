@@ -9,8 +9,15 @@ import { ChatService } from './chat.service';
 import { MessageHistoryResponseDto } from './dto/message.dto';
 
 describe('ChatController', () => {
-  let controller: ChatController;
-  let chatService: jest.Mocked<ChatService>;
+type ExtendedChatService = jest.Mocked<
+  ChatService & {
+    getThreadMessages: jest.Mock;
+    createThreadReply: jest.Mock;
+  }
+>;
+
+let controller: ChatController;
+let chatService: ExtendedChatService;
 
   const mockUser = {
     id: 1,
@@ -24,6 +31,7 @@ describe('ChatController', () => {
         id: 100,
         content: 'Hello, world!',
         roomId: 1,
+        parentMessageId: null,
         userId: 1,
         user: {
           id: 1,
@@ -34,6 +42,10 @@ describe('ChatController', () => {
         isEdited: false,
         editedAt: null,
         isDeleted: false,
+        threadReplyCount: 0,
+        threadLastRepliedAt: null,
+        threadLastRepliedBy: null,
+        threadLastRepliedByUser: null,
         reactions: [],
       },
     ],
@@ -47,6 +59,8 @@ describe('ChatController', () => {
   beforeEach(async () => {
     const mockChatService = {
       getMessageHistory: jest.fn(),
+      getThreadMessages: jest.fn(),
+      createThreadReply: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -106,6 +120,33 @@ describe('ChatController', () => {
       await controller.getMessages(1, {}, mockUser);
 
       expect(chatService.getMessageHistory).toHaveBeenCalledWith(1, mockUser.id, {});
+    });
+  });
+
+  describe('getThreadMessages', () => {
+    it('スレッドメッセージを取得できること', async () => {
+      chatService.getThreadMessages.mockResolvedValue({
+        parent: mockMessageHistoryResponse.data[0],
+        replies: [],
+        pagination: { hasMore: false, nextCursor: null, prevCursor: null },
+      });
+
+      await controller.getThreadMessages(10, { limit: 30 }, mockUser);
+
+      expect(chatService.getThreadMessages).toHaveBeenCalledWith(10, mockUser.id, { limit: 30 });
+    });
+  });
+
+  describe('createThreadReply', () => {
+    it('スレッド返信作成をサービスへ委譲すること', async () => {
+      chatService.createThreadReply.mockResolvedValue({
+        replyDto: mockMessageHistoryResponse.data[0],
+      });
+
+      const result = await controller.createThreadReply(10, { content: 'reply' }, mockUser);
+
+      expect(chatService.createThreadReply).toHaveBeenCalledWith(10, mockUser.id, 'reply');
+      expect(result).toEqual(mockMessageHistoryResponse.data[0]);
     });
   });
 });

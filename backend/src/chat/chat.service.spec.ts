@@ -10,7 +10,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChannelMembershipService } from '../chat-rooms/channel-membership.service';
 
 describe('ChatService', () => {
-  let service: ChatService;
+type ExtendedChatService = ChatService & {
+  getThreadMessages: jest.Mock;
+  createThreadReply: jest.Mock;
+  editMessage: jest.Mock;
+  deleteMessage: jest.Mock;
+  addReaction: jest.Mock;
+  removeReaction: jest.Mock;
+};
+
+let service: ExtendedChatService;
   let mockPrismaService: {
     chatRoom: {
       findUnique: jest.Mock;
@@ -19,6 +28,9 @@ describe('ChatService', () => {
       findUnique: jest.Mock;
       findMany: jest.Mock;
       update: jest.Mock;
+      create: jest.Mock;
+      count: jest.Mock;
+      findFirst: jest.Mock;
     };
     user: {
       findUnique: jest.Mock;
@@ -28,6 +40,7 @@ describe('ChatService', () => {
       upsert: jest.Mock;
       delete: jest.Mock;
     };
+    $transaction: jest.Mock;
   };
   let mockMembershipService: {
     canAccessChannel: jest.Mock;
@@ -54,11 +67,16 @@ describe('ChatService', () => {
       content: 'Message 100',
       chatRoomId: 1,
       userId: 1,
+      parentMessageId: null,
       createdAt: new Date('2025-11-27T10:00:00Z'),
       isEdited: false,
       editedAt: null,
       isDeleted: false,
       deletedAt: null,
+      threadReplyCount: 0,
+      threadLastRepliedAt: null,
+      threadLastRepliedBy: null,
+      threadLastRepliedByUser: null,
       user: mockUser,
       reactions: [],
     },
@@ -67,11 +85,16 @@ describe('ChatService', () => {
       content: 'Message 99',
       chatRoomId: 1,
       userId: 1,
+      parentMessageId: null,
       createdAt: new Date('2025-11-27T09:00:00Z'),
       isEdited: false,
       editedAt: null,
       isDeleted: false,
       deletedAt: null,
+      threadReplyCount: 0,
+      threadLastRepliedAt: null,
+      threadLastRepliedBy: null,
+      threadLastRepliedByUser: null,
       user: mockUser,
       reactions: [
         { emoji: '👍', userId: 1 },
@@ -84,11 +107,16 @@ describe('ChatService', () => {
       content: 'Message 98',
       chatRoomId: 1,
       userId: 1,
+      parentMessageId: null,
       createdAt: new Date('2025-11-27T08:00:00Z'),
       isEdited: false,
       editedAt: null,
       isDeleted: false,
       deletedAt: null,
+      threadReplyCount: 0,
+      threadLastRepliedAt: null,
+      threadLastRepliedBy: null,
+      threadLastRepliedByUser: null,
       user: mockUser,
       reactions: [],
     },
@@ -100,19 +128,23 @@ describe('ChatService', () => {
         findUnique: jest.fn(),
       },
       message: {
-        findUnique: jest.fn(),
-        findMany: jest.fn(),
-        update: jest.fn(),
-      },
-      user: {
-        findUnique: jest.fn(),
-      },
-      reaction: {
-        findUnique: jest.fn(),
-        upsert: jest.fn(),
-        delete: jest.fn(),
-      },
-    };
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      create: jest.fn(),
+      count: jest.fn(),
+      findFirst: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn(),
+    },
+    reaction: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+      delete: jest.fn(),
+    },
+    $transaction: jest.fn(),
+  };
 
     mockMembershipService = {
       canAccessChannel: jest.fn(),
@@ -132,7 +164,7 @@ describe('ChatService', () => {
       ],
     }).compile();
 
-    service = module.get<ChatService>(ChatService);
+    service = module.get(ChatService) as ExtendedChatService;
   });
 
   describe('getMessageHistory', () => {
@@ -352,6 +384,87 @@ describe('ChatService', () => {
         expect(heart?.count).toBe(1);
         expect(heart?.userIds).toEqual([1]);
       });
+    });
+  });
+
+  describe('getThreadMessages', () => {
+    it('スレッドメッセージを取得できること', async () => {
+      const parentMessage = {
+        ...mockMessages[0],
+      };
+      const replyMessage = {
+        ...mockMessages[1],
+        id: 200,
+        parentMessageId: parentMessage.id,
+      };
+
+      mockPrismaService.message.findUnique
+        .mockResolvedValueOnce(parentMessage) // 親取得
+        .mockResolvedValueOnce(null); // カーソルなし
+      mockMembershipService.canAccessChannel.mockResolvedValue(true);
+      mockPrismaService.message.findMany.mockResolvedValue([replyMessage]);
+
+      const result = await service.getThreadMessages(parentMessage.id, 1, {
+        limit: 30,
+        direction: 'older',
+      });
+
+      expect(result.parent.id).toBe(parentMessage.id);
+      expect(result.replies).toHaveLength(1);
+      expect(result.replies[0].parentMessageId).toBe(parentMessage.id);
+    });
+  });
+
+  describe('createThreadReply', () => {
+    it('親メッセージにスレッド返信を作成し、集計を返すこと', async () => {
+      const parentMessage = {
+        id: 1,
+        chatRoomId: 1,
+        parentMessageId: null,
+        isDeleted: false,
+      };
+      mockPrismaService.message.findUnique.mockResolvedValue(parentMessage);
+      mockMembershipService.canAccessChannel.mockResolvedValue(true);
+
+      const reply = {
+        id: 300,
+        content: 'reply',
+        chatRoomId: 1,
+        userId: 1,
+        parentMessageId: parentMessage.id,
+        createdAt: new Date('2025-11-27T12:00:00Z'),
+        isEdited: false,
+        editedAt: null,
+        isDeleted: false,
+        deletedAt: null,
+        threadReplyCount: 0,
+        threadLastRepliedAt: null,
+        threadLastRepliedBy: null,
+        threadLastRepliedByUser: null,
+        reactions: [],
+        user: mockUser,
+      };
+
+      const updatedParent = {
+        threadReplyCount: 1,
+        threadLastRepliedAt: reply.createdAt,
+        threadLastRepliedBy: reply.userId,
+      };
+
+      mockPrismaService.$transaction.mockImplementation(async (cb) =>
+        cb({
+          message: {
+            create: jest.fn().mockResolvedValue(reply),
+            update: jest.fn().mockResolvedValue(updatedParent),
+          },
+        }),
+      );
+
+      const result = await service.createThreadReply(parentMessage.id, 1, 'reply');
+
+      expect(result.roomId).toBe(1);
+      expect(result.replyDto.parentMessageId).toBe(parentMessage.id);
+      expect(result.threadSummary.threadReplyCount).toBe(1);
     });
   });
 

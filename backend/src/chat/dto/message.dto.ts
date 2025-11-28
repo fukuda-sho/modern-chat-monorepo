@@ -70,6 +70,13 @@ export class MessageDto {
   content: string;
 
   @ApiProperty({
+    description: '親メッセージ ID（スレッド返信の場合）',
+    example: null,
+    nullable: true,
+  })
+  parentMessageId: number | null;
+
+  @ApiProperty({
     description: 'ルーム ID',
     example: 1,
   })
@@ -111,6 +118,33 @@ export class MessageDto {
     example: false,
   })
   isDeleted: boolean;
+
+  @ApiProperty({
+    description: 'スレッド返信数',
+    example: 3,
+  })
+  threadReplyCount: number;
+
+  @ApiProperty({
+    description: '最後の返信日時（ISO 8601 形式）',
+    example: '2025-11-27T11:00:00.000Z',
+    nullable: true,
+  })
+  threadLastRepliedAt: string | null;
+
+  @ApiProperty({
+    description: '最後に返信したユーザー ID',
+    example: 2,
+    nullable: true,
+  })
+  threadLastRepliedBy: number | null;
+
+  @ApiProperty({
+    description: '最後に返信したユーザー情報',
+    type: UserBriefDto,
+    nullable: true,
+  })
+  threadLastRepliedByUser?: UserBriefDto | null;
 
   @ApiProperty({
     description: 'リアクション一覧',

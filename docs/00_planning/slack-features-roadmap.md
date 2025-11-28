@@ -161,7 +161,7 @@ Slackに寄せたメッセージ行/スレッド体験を実装するフェー�
 6) **アクセシビリティ/ショートカット**: `Cmd/Ctrl+Shift+Enter` でスレッド返信、`Esc` でペインを閉じる。  
 7) **QA/テスト**: 親子整合性・WS同期・レイアウト回りのビジュアル回帰（スクショテスト）・キーボード操作のE2E。
 
-**詳細仕様（作成予定）**: `docs/10_implementation/backend/11_message-threads.md`, `docs/10_implementation/frontend/13_message-threads.md`
+**詳細仕様（作成予定）**: `docs/10_implementation/backend/12_message-threads.md`, `docs/10_implementation/frontend/14_message-threads.md`
 
 ### 3.4 Phase 4: 未読管理と通知
 
@@ -422,7 +422,7 @@ frontend/features/
 ### 8.1 詳細仕様書（作成予定）
 
 **Backend**
-- `docs/10_implementation/backend/11_message-threads.md`
+- `docs/10_implementation/backend/12_message-threads.md`
 - `docs/10_implementation/backend/10_realtime-presence.md`
 - `docs/10_implementation/backend/12_message-actions.md`
 - `docs/10_implementation/backend/13_unread-management.md`
@@ -433,7 +433,7 @@ frontend/features/
 
 **Frontend**
 - `docs/10_implementation/frontend/11_realtime-presence.md`
-- `docs/10_implementation/frontend/13_message-threads.md`
+- `docs/10_implementation/frontend/14_message-threads.md`
 - `docs/10_implementation/frontend/14_message-actions.md`
 - `docs/10_implementation/frontend/15_notifications.md`
 - `docs/10_implementation/frontend/16_direct-messages.md`

@@ -44,6 +44,11 @@ import {
   MessageDeletedPayload,
   ReactionAddedPayload,
   ReactionRemovedPayload,
+  CreateThreadReplyPayload,
+  ThreadReplyAddedPayload,
+  ThreadReplyUpdatedPayload,
+  ThreadReplyDeletedPayload,
+  ThreadSummaryUpdatedPayload,
 } from './types/chat.types';
 import { ChatService } from './chat.service';
 
@@ -295,11 +300,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const messagePayload: MessageCreatedPayload = {
         id: message.id,
         roomId: message.chatRoomId,
+        parentMessageId: null,
         userId: message.userId,
         username: message.user.username || message.user.email,
         content: message.content,
         createdAt: message.createdAt.toISOString(),
         localId,
+        threadReplyCount: 0,
+        threadLastRepliedAt: null,
+        threadLastRepliedBy: null,
       };
 
       this.server.to(roomId.toString()).emit('messageCreated', messagePayload);
@@ -311,6 +320,63 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'メッセージの送信に失敗しました',
         code: 'MESSAGE_SEND_FAILED',
         localId,
+      } satisfies ErrorPayload);
+    }
+  }
+
+  /**
+   * スレッド返信送信イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {CreateThreadReplyPayload} payload - スレッド返信ペイロード
+   */
+  @SubscribeMessage('createThreadReply')
+  async handleCreateThreadReply(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: CreateThreadReplyPayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { parentMessageId, content, localId } = payload;
+
+    try {
+      const result = await this.chatService.createThreadReply(parentMessageId, user.userId, content);
+
+      const replyPayload: ThreadReplyAddedPayload = {
+        parentMessageId,
+        roomId: result.roomId,
+        reply: {
+          id: result.reply.id,
+          roomId: result.reply.chatRoomId,
+          parentMessageId,
+          userId: result.reply.userId,
+          username: result.reply.user.username || result.reply.user.email,
+          content: result.reply.content,
+          createdAt: result.reply.createdAt.toISOString(),
+          localId,
+        },
+      };
+
+      const summaryPayload: ThreadSummaryUpdatedPayload = {
+        parentMessageId,
+        roomId: result.roomId,
+        threadReplyCount: result.threadSummary.threadReplyCount,
+        threadLastRepliedAt: result.threadSummary.threadLastRepliedAt.toISOString(),
+        threadLastRepliedBy: result.threadSummary.threadLastRepliedBy,
+        threadLastRepliedByUsername: user.username || user.email,
+      };
+
+      this.server.to(result.roomId.toString()).emit('threadReplyAdded', replyPayload);
+      this.server.to(result.roomId.toString()).emit('threadSummaryUpdated', summaryPayload);
+    } catch (error) {
+      this.logger.error(`Failed to create thread reply: ${error}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'スレッド返信の送信に失敗しました';
+      client.emit('error', {
+        message: errorMessage,
+        code: 'THREAD_REPLY_FAILED',
+        localId,
+        parentMessageId,
       } satisfies ErrorPayload);
     }
   }
@@ -337,14 +403,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const result = await this.chatService.editMessage(messageId, user.userId, content);
 
-      // ルーム全体に配信
-      this.server.to(result.roomId.toString()).emit('messageUpdated', {
-        id: result.id,
-        roomId: result.roomId,
-        content: result.content,
-        isEdited: result.isEdited,
-        editedAt: result.editedAt,
-      } satisfies MessageUpdatedPayload);
+      if (result.parentMessageId) {
+        this.server.to(result.roomId.toString()).emit('threadReplyUpdated', {
+          parentMessageId: result.parentMessageId,
+          roomId: result.roomId,
+          replyId: result.id,
+          content: result.content,
+          isEdited: result.isEdited,
+          editedAt: result.editedAt,
+        } satisfies ThreadReplyUpdatedPayload);
+      } else {
+        // ルーム全体に配信
+        this.server.to(result.roomId.toString()).emit('messageUpdated', {
+          id: result.id,
+          roomId: result.roomId,
+          content: result.content,
+          isEdited: result.isEdited,
+          editedAt: result.editedAt,
+        } satisfies MessageUpdatedPayload);
+      }
 
       this.logger.log(`Message ${messageId} edited by user ${user.userId}`);
     } catch (error) {
@@ -376,11 +453,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const result = await this.chatService.deleteMessage(messageId, user.userId);
 
-      // ルーム全体に配信
-      this.server.to(result.roomId.toString()).emit('messageDeleted', {
-        id: result.id,
-        roomId: result.roomId,
-      } satisfies MessageDeletedPayload);
+      if (result.parentMessageId) {
+        this.server.to(result.roomId.toString()).emit('threadReplyDeleted', {
+          parentMessageId: result.parentMessageId,
+          roomId: result.roomId,
+          replyId: result.id,
+        } satisfies ThreadReplyDeletedPayload);
+
+        if (result.threadSummary) {
+          this.server.to(result.roomId.toString()).emit('threadSummaryUpdated', {
+            parentMessageId: result.parentMessageId,
+            roomId: result.roomId,
+            threadReplyCount: result.threadSummary.threadReplyCount,
+            threadLastRepliedAt: result.threadSummary.threadLastRepliedAt,
+            threadLastRepliedBy: result.threadSummary.threadLastRepliedBy,
+          } satisfies ThreadSummaryUpdatedPayload);
+        }
+      } else {
+        // ルーム全体に配信
+        this.server.to(result.roomId.toString()).emit('messageDeleted', {
+          id: result.id,
+          roomId: result.roomId,
+        } satisfies MessageDeletedPayload);
+      }
 
       this.logger.log(`Message ${messageId} deleted by user ${user.userId}`);
     } catch (error) {
@@ -420,6 +515,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.to(result.roomId.toString()).emit('reactionAdded', {
         messageId: result.messageId,
         roomId: result.roomId,
+        parentMessageId: result.parentMessageId,
         emoji: result.emoji,
         userId: result.userId,
         username: result.username,
@@ -459,6 +555,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.server.to(result.roomId.toString()).emit('reactionRemoved', {
         messageId: result.messageId,
         roomId: result.roomId,
+        parentMessageId: result.parentMessageId,
         emoji: result.emoji,
         userId: result.userId,
       } satisfies ReactionRemovedPayload);

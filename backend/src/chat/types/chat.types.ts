@@ -79,6 +79,8 @@ export interface MessageCreatedPayload {
   id: number;
   /** ルーム ID */
   roomId: number;
+  /** 親メッセージ ID（スレッド返信の場合） */
+  parentMessageId?: number | null;
   /** 送信者のユーザー ID */
   userId: number;
   /** 送信者のユーザー名 */
@@ -89,6 +91,12 @@ export interface MessageCreatedPayload {
   createdAt: string;
   /** オプティミスティック更新用のローカル ID */
   localId?: string;
+  /** スレッド返信数 */
+  threadReplyCount?: number;
+  /** 最終返信日時 */
+  threadLastRepliedAt?: string | null;
+  /** 最終返信ユーザー */
+  threadLastRepliedBy?: number | null;
 }
 
 /**
@@ -101,6 +109,8 @@ export interface ErrorPayload {
   code?: string;
   /** オプティミスティック更新用のローカル ID */
   localId?: string;
+  /** スレッド親メッセージ ID（スレッド操作時のみ） */
+  parentMessageId?: number;
 }
 
 // ========================================
@@ -285,6 +295,8 @@ export interface ReactionAddedPayload {
   messageId: number;
   /** ルーム ID */
   roomId: number;
+  /** 親メッセージ ID（スレッド返信の場合） */
+  parentMessageId?: number | null;
   /** 絵文字 */
   emoji: string;
   /** ユーザー ID */
@@ -301,10 +313,97 @@ export interface ReactionRemovedPayload {
   messageId: number;
   /** ルーム ID */
   roomId: number;
+  /** 親メッセージ ID（スレッド返信の場合） */
+  parentMessageId?: number | null;
   /** 絵文字 */
   emoji: string;
   /** ユーザー ID */
   userId: number;
+}
+
+// ========================================
+// スレッド関連
+// ========================================
+
+/**
+ * createThreadReply イベントのペイロード
+ */
+export interface CreateThreadReplyPayload {
+  /** 親メッセージ ID */
+  parentMessageId: number;
+  /** 本文 */
+  content: string;
+  /** オプティミスティック更新用のローカル ID */
+  localId?: string;
+}
+
+/**
+ * スレッド返信追加ペイロード
+ */
+export interface ThreadReplyAddedPayload {
+  /** 親メッセージ ID */
+  parentMessageId: number;
+  /** ルーム ID */
+  roomId: number;
+  /** 返信メッセージ */
+  reply: {
+    id: number;
+    roomId: number;
+    parentMessageId: number;
+    userId: number;
+    username: string;
+    content: string;
+    createdAt: string;
+    localId?: string;
+  };
+}
+
+/**
+ * スレッド返信更新ペイロード
+ */
+export interface ThreadReplyUpdatedPayload {
+  /** 親メッセージ ID */
+  parentMessageId: number;
+  /** ルーム ID */
+  roomId: number;
+  /** 返信メッセージ ID */
+  replyId: number;
+  /** 内容 */
+  content: string;
+  /** 編集フラグ */
+  isEdited: boolean;
+  /** 編集日時 */
+  editedAt: string;
+}
+
+/**
+ * スレッド返信削除ペイロード
+ */
+export interface ThreadReplyDeletedPayload {
+  /** 親メッセージ ID */
+  parentMessageId: number;
+  /** ルーム ID */
+  roomId: number;
+  /** 返信メッセージ ID */
+  replyId: number;
+}
+
+/**
+ * スレッドサマリー更新ペイロード
+ */
+export interface ThreadSummaryUpdatedPayload {
+  /** 親メッセージ ID */
+  parentMessageId: number;
+  /** ルーム ID */
+  roomId: number;
+  /** 返信数 */
+  threadReplyCount: number;
+  /** 最終返信日時 */
+  threadLastRepliedAt: string | null;
+  /** 最終返信ユーザー ID */
+  threadLastRepliedBy: number | null;
+  /** 最終返信ユーザー名（任意） */
+  threadLastRepliedByUsername?: string;
 }
 
 // ========================================
@@ -325,6 +424,7 @@ export const ClientEvents = {
   DELETE_MESSAGE: 'deleteMessage',
   ADD_REACTION: 'addReaction',
   REMOVE_REACTION: 'removeReaction',
+  CREATE_THREAD_REPLY: 'createThreadReply',
 } as const;
 
 /**
@@ -345,4 +445,8 @@ export const ServerEvents = {
   USER_TYPING: 'userTyping',
   MEMBER_JOINED: 'memberJoined',
   MEMBER_LEFT: 'memberLeft',
+  THREAD_REPLY_ADDED: 'threadReplyAdded',
+  THREAD_REPLY_UPDATED: 'threadReplyUpdated',
+  THREAD_REPLY_DELETED: 'threadReplyDeleted',
+  THREAD_SUMMARY_UPDATED: 'threadSummaryUpdated',
 } as const;

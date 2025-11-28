@@ -7,6 +7,8 @@ import { apiClient } from '@/lib/api-client';
 import type {
   MessageHistoryResponse,
   GetMessagesOptions,
+  ThreadMessagesResponse,
+  Message,
 } from '@/types';
 
 const DEFAULT_LIMIT = 50;
@@ -38,4 +40,37 @@ export async function fetchRoomMessages(
   );
 
   return response;
+}
+
+/**
+ * スレッドメッセージを取得
+ */
+export async function fetchThreadMessages(
+  parentMessageId: number,
+  options: GetMessagesOptions = {},
+): Promise<ThreadMessagesResponse> {
+  const { limit = 30, cursor, direction = 'older' } = options;
+
+  const params: Record<string, string> = {
+    limit: String(limit),
+    direction,
+  };
+
+  if (cursor !== undefined) {
+    params.cursor = String(cursor);
+  }
+
+  return apiClient.get<ThreadMessagesResponse>(`/chat/messages/${parentMessageId}/thread`, {
+    params,
+  });
+}
+
+/**
+ * スレッド返信を作成
+ */
+export async function postThreadReply(parentMessageId: number, content: string) {
+  return apiClient.post<Message>(
+    `/chat/messages/${parentMessageId}/thread`,
+    { content },
+  );
 }

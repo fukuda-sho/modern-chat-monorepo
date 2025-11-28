@@ -12,6 +12,7 @@ interface ChatState {
   messages: Map<number, Message[]>;
   connectionStatus: ConnectionStatus;
   currentRoomId: number | null;
+  activeThreadParentId: number | null;
 
   // Actions
   addMessage: (roomId: number, message: Message) => void;
@@ -19,6 +20,7 @@ interface ChatState {
   clearMessages: (roomId: number) => void;
   setConnectionStatus: (status: ConnectionStatus) => void;
   setCurrentRoom: (roomId: number | null) => void;
+  setActiveThread: (parentId: number | null) => void;
   reset: () => void;
 
   // オプティミスティック更新用
@@ -35,6 +37,7 @@ const initialState = {
   messages: new Map<number, Message[]>(),
   connectionStatus: 'disconnected' as ConnectionStatus,
   currentRoomId: null,
+  activeThreadParentId: null,
 };
 
 export const useChatStore = create<ChatState>()(
@@ -95,6 +98,9 @@ export const useChatStore = create<ChatState>()(
 
       setCurrentRoom: (roomId) =>
         set({ currentRoomId: roomId }, false, 'setCurrentRoom'),
+
+      setActiveThread: (parentId) =>
+        set({ activeThreadParentId: parentId }, false, 'setActiveThread'),
 
       reset: () => set(initialState, false, 'reset'),
 

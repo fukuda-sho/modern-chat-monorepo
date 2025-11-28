@@ -39,11 +39,19 @@ export function useChatSocket() {
     socketService.sendMessage(roomId, content);
   }, []);
 
+  const createThreadReply = useCallback(
+    (parentMessageId: number, content: string, localId?: string) => {
+      socketService.createThreadReply(parentMessageId, content, localId);
+    },
+    [],
+  );
+
   return {
     isConnected,
     connectionStatus,
     joinRoom,
     leaveRoom,
     sendMessage,
+    createThreadReply,
   };
 }

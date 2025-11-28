@@ -131,10 +131,17 @@ describe('ChatRoom', () => {
     });
 
     (useChatStore as unknown as Mock).mockImplementation(
-      (selector: (state: { messages: Map<number, never[]>; connectionStatus: ConnectionStatus }) => unknown) => {
+      (selector: (state: {
+        messages: Map<number, never[]>;
+        connectionStatus: ConnectionStatus;
+        activeThreadParentId: number | null;
+        setActiveThread: (id: number | null) => void;
+      }) => unknown) => {
         const state = {
           messages: new Map([[1, messages]]),
           connectionStatus,
+          activeThreadParentId: null,
+          setActiveThread: vi.fn(),
         };
         return selector(state);
       }

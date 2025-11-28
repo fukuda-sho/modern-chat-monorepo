@@ -24,6 +24,7 @@ export interface Message {
   id: number;
   roomId: number;
   userId: number;
+  parentMessageId?: number | null;
   username?: string;
   content: string;
   createdAt: string;
@@ -37,6 +38,14 @@ export interface Message {
   editedAt?: string | null;
   /** 削除済みフラグ */
   isDeleted?: boolean;
+  /** スレッド返信数 */
+  threadReplyCount?: number;
+  /** 最終返信日時 */
+  threadLastRepliedAt?: string | null;
+  /** 最終返信者 ID */
+  threadLastRepliedBy?: number | null;
+  /** 最終返信者情報 */
+  threadLastRepliedByUser?: MessageUser | null;
   /** リアクション一覧 */
   reactions?: ReactionSummary[];
 }
@@ -186,6 +195,7 @@ export interface ErrorPayload {
   message: string;
   code?: string;
   localId?: string;
+  parentMessageId?: number;
 }
 
 // ========================================
@@ -227,6 +237,61 @@ export interface MessageDeletedPayload {
 }
 
 // ========================================
+// スレッド関連
+// ========================================
+
+export interface CreateThreadReplyPayload {
+  parentMessageId: number;
+  content: string;
+  localId?: string;
+}
+
+export interface ThreadReplyAddedPayload {
+  parentMessageId: number;
+  roomId: number;
+  reply: {
+    id: number;
+    roomId: number;
+    parentMessageId: number;
+    userId: number;
+    username: string;
+    content: string;
+    createdAt: string;
+    localId?: string;
+  };
+}
+
+export interface ThreadReplyUpdatedPayload {
+  parentMessageId: number;
+  roomId: number;
+  replyId: number;
+  content: string;
+  isEdited: boolean;
+  editedAt: string;
+}
+
+export interface ThreadReplyDeletedPayload {
+  parentMessageId: number;
+  roomId: number;
+  replyId: number;
+}
+
+export interface ThreadSummaryUpdatedPayload {
+  parentMessageId: number;
+  roomId: number;
+  threadReplyCount: number;
+  threadLastRepliedAt: string | null;
+  threadLastRepliedBy: number | null;
+  threadLastRepliedByUsername?: string;
+}
+
+export interface ThreadMessagesResponse {
+  parent: Message;
+  replies: Message[];
+  pagination: MessagePagination;
+}
+
+// ========================================
 // リアクション関連
 // ========================================
 
@@ -252,6 +317,7 @@ export interface RemoveReactionPayload {
 export interface ReactionAddedPayload {
   messageId: number;
   roomId: number;
+  parentMessageId?: number | null;
   emoji: string;
   userId: number;
   username: string;
@@ -263,6 +329,7 @@ export interface ReactionAddedPayload {
 export interface ReactionRemovedPayload {
   messageId: number;
   roomId: number;
+  parentMessageId?: number | null;
   emoji: string;
   userId: number;
 }

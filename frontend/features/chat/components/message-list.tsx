@@ -10,7 +10,7 @@
 
 import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
-import { MessageItem } from './message-item';
+import { MessageCell } from './message-cell';
 import { DateSeparator } from './date-separator';
 import { LoadMoreTrigger } from './load-more-trigger';
 import { useRoomMessages } from '../hooks/use-room-messages';
@@ -26,6 +26,8 @@ interface MessageListProps {
   className?: string;
   /** 新着メッセージ受信時のコールバック */
   onNewMessage?: (message: Message) => void;
+  /** スレッドを開くハンドラ */
+  onOpenThread?: (message: Message) => void;
 }
 
 /**
@@ -37,7 +39,11 @@ interface MessageListProps {
  * @param props - メッセージリスト用 props
  * @returns メッセージリストの JSX 要素
  */
-export function MessageList({ roomId, className }: MessageListProps): React.JSX.Element {
+export function MessageList({
+  roomId,
+  className,
+  onOpenThread,
+}: MessageListProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -182,11 +188,11 @@ export function MessageList({ roomId, className }: MessageListProps): React.JSX.
           item.type === 'date-separator' ? (
             <DateSeparator key={`date-${item.date}-${index}`} date={item.date} />
           ) : (
-            <MessageItem
+            <MessageCell
               key={item.data.localId || item.data.id}
               message={item.data}
-              isOwn={item.data.userId === currentUser?.id}
               currentUserId={currentUser?.id ?? 0}
+              onOpenThread={onOpenThread}
             />
           ),
         )}

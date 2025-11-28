@@ -9,6 +9,7 @@ import { getQueryClient } from './query-client';
 import { useChatStore } from '@/features/chat/store/chat-store';
 import { usePresenceStore } from '@/features/presence/store/presence-store';
 import { roomMessagesKeys } from '@/features/chat/hooks/use-room-messages';
+import { threadMessagesKeys } from '@/features/chat/hooks/use-thread-messages';
 import type {
   MessageCreatedPayload,
   RoomJoinedPayload,
@@ -34,6 +35,12 @@ import type {
   MessageDeletedPayload,
   ReactionAddedPayload,
   ReactionRemovedPayload,
+  CreateThreadReplyPayload,
+  ThreadReplyAddedPayload,
+  ThreadReplyUpdatedPayload,
+  ThreadReplyDeletedPayload,
+  ThreadSummaryUpdatedPayload,
+  ThreadMessagesResponse,
 } from '@/types';
 
 /**
@@ -52,6 +59,10 @@ interface ServerToClientEvents {
   userOffline: (payload: UserOfflinePayload) => void;
   onlineUsersList: (payload: OnlineUsersListPayload) => void;
   userTyping: (payload: UserTypingPayload) => void;
+  threadReplyAdded: (payload: ThreadReplyAddedPayload) => void;
+  threadReplyUpdated: (payload: ThreadReplyUpdatedPayload) => void;
+  threadReplyDeleted: (payload: ThreadReplyDeletedPayload) => void;
+  threadSummaryUpdated: (payload: ThreadSummaryUpdatedPayload) => void;
 }
 
 /**
@@ -68,6 +79,7 @@ interface ClientToServerEvents {
   getOnlineUsers: (payload: GetOnlineUsersPayload) => void;
   startTyping: (payload: StartTypingPayload) => void;
   stopTyping: (payload: StopTypingPayload) => void;
+  createThreadReply: (payload: CreateThreadReplyPayload) => void;
 }
 
 /**
@@ -193,11 +205,15 @@ class SocketService {
       const message: Message = {
         id: payload.id,
         roomId: payload.roomId,
+        parentMessageId: payload.parentMessageId ?? null,
         userId: payload.userId,
         username: payload.username,
         content: payload.content,
         createdAt: payload.createdAt,
         localId: payload.localId,
+        threadReplyCount: payload.threadReplyCount ?? 0,
+        threadLastRepliedAt: payload.threadLastRepliedAt ?? null,
+        threadLastRepliedBy: payload.threadLastRepliedBy ?? null,
       };
 
       // TanStack Query キャッシュを更新
@@ -214,6 +230,10 @@ class SocketService {
     // エラー
     this.socket.on('error', (payload) => {
       console.error('[Socket] Error:', payload.message);
+
+      if (payload.localId && payload.parentMessageId) {
+        this.removeOptimisticThreadReply(payload.parentMessageId, payload.localId);
+      }
 
       // localId があればオプティミスティック更新の失敗処理
       if (payload.localId) {
@@ -291,23 +311,100 @@ class SocketService {
     // リアクション追加
     this.socket.on('reactionAdded', (payload) => {
       console.log('[Socket] Reaction added:', payload);
-      this.addReactionToCache(
-        payload.roomId,
-        payload.messageId,
-        payload.emoji,
-        payload.userId
-      );
+      if (payload.parentMessageId) {
+        this.addReactionToThreadCache(
+          payload.parentMessageId,
+          payload.messageId,
+          payload.emoji,
+          payload.userId
+        );
+      } else {
+        this.addReactionToCache(
+          payload.roomId,
+          payload.messageId,
+          payload.emoji,
+          payload.userId
+        );
+      }
     });
 
     // リアクション削除
     this.socket.on('reactionRemoved', (payload) => {
       console.log('[Socket] Reaction removed:', payload);
-      this.removeReactionFromCache(
-        payload.roomId,
-        payload.messageId,
-        payload.emoji,
-        payload.userId
-      );
+      if (payload.parentMessageId) {
+        this.removeReactionFromThreadCache(
+          payload.parentMessageId,
+          payload.messageId,
+          payload.emoji,
+          payload.userId
+        );
+      } else {
+        this.removeReactionFromCache(
+          payload.roomId,
+          payload.messageId,
+          payload.emoji,
+          payload.userId
+        );
+      }
+    });
+
+    // ========================================
+    // スレッドイベント
+    // ========================================
+    this.socket.on('threadReplyAdded', (payload) => {
+      console.log('[Socket] Thread reply added:', payload);
+      const reply: Message = {
+        id: payload.reply.id,
+        roomId: payload.roomId,
+        parentMessageId: payload.parentMessageId,
+        userId: payload.reply.userId,
+        username: payload.reply.username,
+        content: payload.reply.content,
+        createdAt: payload.reply.createdAt,
+        localId: payload.reply.localId,
+        isEdited: false,
+        isDeleted: false,
+        threadReplyCount: 0,
+        threadLastRepliedAt: null,
+        threadLastRepliedBy: null,
+        reactions: [],
+      };
+      this.addThreadReplyToCache(payload.parentMessageId, reply);
+    });
+
+    this.socket.on('threadReplyUpdated', (payload) => {
+      console.log('[Socket] Thread reply updated:', payload);
+      this.updateThreadReplyInCache(payload.parentMessageId, payload.replyId, {
+        content: payload.content,
+        isEdited: payload.isEdited,
+        editedAt: payload.editedAt,
+      });
+    });
+
+    this.socket.on('threadReplyDeleted', (payload) => {
+      console.log('[Socket] Thread reply deleted:', payload);
+      this.updateThreadReplyInCache(payload.parentMessageId, payload.replyId, {
+        isDeleted: true,
+        content: '',
+      });
+    });
+
+    this.socket.on('threadSummaryUpdated', (payload) => {
+      console.log('[Socket] Thread summary updated:', payload);
+      this.updateMessageInCache(payload.roomId, payload.parentMessageId, {
+        threadReplyCount: payload.threadReplyCount,
+        threadLastRepliedAt: payload.threadLastRepliedAt,
+        threadLastRepliedBy: payload.threadLastRepliedBy,
+        threadLastRepliedByUser:
+          payload.threadLastRepliedBy && payload.threadLastRepliedByUsername
+            ? {
+                id: payload.threadLastRepliedBy,
+                username: payload.threadLastRepliedByUsername,
+                email: '',
+              }
+            : undefined,
+      });
+      this.updateThreadSummaryInCache(payload.parentMessageId, payload);
     });
   }
 
@@ -439,6 +536,17 @@ class SocketService {
       return;
     }
     this.socket.emit('removeReaction', { messageId, emoji });
+  }
+
+  /**
+   * スレッド返信を送信
+   */
+  createThreadReply(parentMessageId: number, content: string, localId?: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot send thread reply');
+      return;
+    }
+    this.socket.emit('createThreadReply', { parentMessageId, content, localId });
   }
 
   /**
@@ -641,6 +749,210 @@ class SocketService {
         ...oldData,
         pages: newPages,
       };
+    });
+  }
+
+  /**
+   * スレッド内のメッセージにリアクションを追加
+   */
+  private addReactionToThreadCache(
+    parentMessageId: number,
+    messageId: number,
+    emoji: string,
+    userId: number,
+  ): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        replies: page.replies.map((msg) => {
+          if (msg.id !== messageId) return msg;
+
+          const reactions = msg.reactions || [];
+          const existingReaction = reactions.find((r) => r.emoji === emoji);
+
+          if (existingReaction) {
+            if (existingReaction.userIds.includes(userId)) {
+              return msg;
+            }
+            return {
+              ...msg,
+              reactions: reactions.map((r) =>
+                r.emoji === emoji
+                  ? { ...r, count: r.count + 1, userIds: [...r.userIds, userId] }
+                  : r,
+              ),
+            };
+          }
+
+          return {
+            ...msg,
+            reactions: [...reactions, { emoji, count: 1, userIds: [userId] }],
+          };
+        }),
+      }));
+
+      return { ...oldData, pages: newPages };
+    });
+  }
+
+  /**
+   * スレッド内のメッセージからリアクションを削除
+   */
+  private removeReactionFromThreadCache(
+    parentMessageId: number,
+    messageId: number,
+    emoji: string,
+    userId: number,
+  ): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        replies: page.replies.map((msg) => {
+          if (msg.id !== messageId) return msg;
+
+          const reactions = msg.reactions || [];
+          const updatedReactions = reactions
+            .map((r) => {
+              if (r.emoji !== emoji) return r;
+              const newUserIds = r.userIds.filter((id) => id !== userId);
+              return { ...r, count: newUserIds.length, userIds: newUserIds };
+            })
+            .filter((r) => r.count > 0);
+
+          return {
+            ...msg,
+            reactions: updatedReactions,
+          };
+        }),
+      }));
+
+      return { ...oldData, pages: newPages };
+    });
+  }
+
+  /**
+   * スレッド返信をキャッシュに追加
+   */
+  private addThreadReplyToCache(parentMessageId: number, reply: Message): void {
+    const queryClient = getQueryClient();
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+      const newPages = [...oldData.pages];
+      if (newPages.length > 0) {
+        const firstPage = { ...newPages[0] };
+        const replaced = firstPage.replies.map((r) => {
+          if (reply.localId && r.localId === reply.localId) {
+            return { ...reply, isPending: false };
+          }
+          if (r.id === reply.id && reply.id > 0) {
+            return { ...r, ...reply, isPending: false };
+          }
+          return r;
+        });
+        const exists =
+          replaced.some((r) => r.id === reply.id) ||
+          replaced.some((r) => reply.localId && r.localId === reply.localId);
+        firstPage.replies = exists ? replaced : [...replaced, reply];
+        newPages[0] = firstPage;
+      }
+      return { ...oldData, pages: newPages };
+    });
+  }
+
+  /**
+   * スレッド返信を更新
+   */
+  private updateThreadReplyInCache(
+    parentMessageId: number,
+    replyId: number,
+    updates: Partial<Message>,
+  ): void {
+    const queryClient = getQueryClient();
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        replies: page.replies.map((reply) =>
+          reply.id === replyId ? { ...reply, ...updates } : reply,
+        ),
+      }));
+      return { ...oldData, pages: newPages };
+    });
+  }
+
+  /**
+   * スレッドサマリーを更新（親メッセージのみ）
+   */
+  private updateThreadSummaryInCache(
+    parentMessageId: number,
+    summary: ThreadSummaryUpdatedPayload,
+  ): void {
+    const queryClient = getQueryClient();
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+      const newPages = oldData.pages.map((page, idx) =>
+        idx === 0
+          ? {
+              ...page,
+              parent: {
+                ...page.parent,
+                threadReplyCount: summary.threadReplyCount,
+                threadLastRepliedAt: summary.threadLastRepliedAt,
+                threadLastRepliedBy: summary.threadLastRepliedBy,
+                threadLastRepliedByUser:
+                  summary.threadLastRepliedBy && summary.threadLastRepliedByUsername
+                    ? {
+                        id: summary.threadLastRepliedBy,
+                        username: summary.threadLastRepliedByUsername,
+                        email: '',
+                      }
+                    : page.parent.threadLastRepliedByUser,
+              },
+            }
+          : page,
+      );
+      return { ...oldData, pages: newPages };
+    });
+  }
+
+  /**
+   * オプティミスティックなスレッド返信を削除
+   */
+  private removeOptimisticThreadReply(parentMessageId: number, localId: string): void {
+    const queryClient = getQueryClient();
+    queryClient.setQueryData<{
+      pages: ThreadMessagesResponse[];
+      pageParams: (number | undefined)[];
+    }>(threadMessagesKeys.thread(parentMessageId), (oldData) => {
+      if (!oldData) return oldData;
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        replies: page.replies.filter((reply) => reply.localId !== localId),
+      }));
+      return { ...oldData, pages: newPages };
     });
   }
 }

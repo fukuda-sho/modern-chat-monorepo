@@ -5,7 +5,7 @@
 // Components
 export { ChatRoom } from './components/chat-room';
 export { MessageList } from './components/message-list';
-export { MessageItem } from './components/message-item';
+export { MessageCell } from './components/message-cell';
 export { MessageInput } from './components/message-input';
 export { RoomList } from './components/room-list';
 export { RoomItem } from './components/room-item';
@@ -32,6 +32,11 @@ export {
   useMessageCacheUpdater,
   roomMessagesKeys,
 } from './hooks/use-room-messages';
+export {
+  useThreadMessages,
+  useThreadCacheUpdater,
+  threadMessagesKeys,
+} from './hooks/use-thread-messages';
 export {
   useMyChannels,
   useStarredChannels,
@@ -67,7 +72,7 @@ export {
   inviteMembers,
   kickMember,
 } from './api/chat-rooms-api';
-export { fetchRoomMessages } from './api/messages-api';
+export { fetchRoomMessages, fetchThreadMessages, postThreadReply } from './api/messages-api';
 
 // Utils
 export {
