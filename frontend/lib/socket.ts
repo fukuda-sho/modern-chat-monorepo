@@ -97,8 +97,13 @@ class SocketService {
    * @param token - JWT アクセストークン
    */
   connect(token: string): void {
-    if (this.socket?.connected) {
-      console.log('[Socket] Already connected');
+    // 既に接続済み、または接続中の場合は何もしない
+    if (this.socket) {
+      if (this.socket.connected) {
+        console.log('[Socket] Already connected');
+      } else {
+        console.log('[Socket] Connection already in progress');
+      }
       return;
     }
 
