@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /**
  * スレッドメッセージ取得クエリ DTO
@@ -12,6 +13,7 @@ export class GetThreadDto {
     default: 30,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
@@ -22,6 +24,7 @@ export class GetThreadDto {
     example: 120,
   })
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   cursor?: number;
 
