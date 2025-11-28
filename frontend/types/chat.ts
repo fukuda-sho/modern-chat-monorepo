@@ -2,6 +2,15 @@
  * チャット関連の型定義
  */
 
+/**
+ * メッセージに含まれるユーザー情報（API レスポンス用）
+ */
+export interface MessageUser {
+  id: number;
+  username: string;
+  email: string;
+}
+
 export interface Message {
   id: number;
   roomId: number;
@@ -11,7 +20,46 @@ export interface Message {
   createdAt: string;
   localId?: string;
   isPending?: boolean;
+  /** API から取得したメッセージに含まれるユーザー情報 */
+  user?: MessageUser;
 }
+
+// ========================================
+// メッセージ履歴 API 関連
+// ========================================
+
+/**
+ * ページネーション情報（カーソルベース）
+ */
+export interface MessagePagination {
+  hasMore: boolean;
+  nextCursor: number | null;
+  prevCursor: number | null;
+}
+
+/**
+ * メッセージ履歴 API レスポンス
+ */
+export interface MessageHistoryResponse {
+  data: Message[];
+  pagination: MessagePagination;
+}
+
+/**
+ * メッセージ取得オプション
+ */
+export interface GetMessagesOptions {
+  limit?: number;
+  cursor?: number;
+  direction?: 'older' | 'newer';
+}
+
+/**
+ * 日付区切り付きメッセージアイテム（UI 表示用）
+ */
+export type MessageListItem =
+  | { type: 'message'; data: Message }
+  | { type: 'date-separator'; date: string };
 
 export interface Room {
   id: number;

@@ -1,61 +1,198 @@
 /**
- * @fileoverview メッセージ一覧コンポーネント
- * @description チャットメッセージをスクロール可能なリストで表示する
- * 新着メッセージ時に自動スクロール、自分/他者のメッセージを区別
+ * @fileoverview メッセージリストコンポーネント
+ * @description メッセージ履歴を無限スクロールで表示（Slack 風 UX）
+ * - 初回ロード時に最新メッセージを表示
+ * - 上スクロールで古いメッセージを追加読み込み
+ * - リアルタイムメッセージを下部に追加
  */
 
 'use client';
 
-import { useRef } from 'react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { Loader2 } from 'lucide-react';
 import { MessageItem } from './message-item';
-import { useScrollToBottom } from '../hooks/use-scroll-to-bottom';
+import { DateSeparator } from './date-separator';
+import { LoadMoreTrigger } from './load-more-trigger';
+import { useRoomMessages } from '../hooks/use-room-messages';
+import { groupMessagesByDate } from '../utils/message-utils';
 import { useCurrentUser } from '@/features/auth';
-import type { Message } from '@/types';
 import { cn } from '@/lib/utils';
+import type { MessageListItem, Message } from '@/types';
 
-/** メッセージ一覧の Props 型 */
-type MessageListProps = {
-  /** 表示するメッセージの配列 */
-  messages: Message[];
+interface MessageListProps {
+  /** ルーム ID */
+  roomId: number;
   /** 追加の CSS クラス名 */
   className?: string;
-};
+  /** 新着メッセージ受信時のコールバック */
+  onNewMessage?: (message: Message) => void;
+}
 
 /**
- * メッセージ一覧コンポーネント
- * クライアントコンポーネントとして以下の機能を提供:
- * - メッセージをスクロール可能なエリアで表示
- * - 新着メッセージ時に自動で最下部にスクロール
- * - 現在のユーザーを取得し、自分のメッセージを識別
- * - メッセージがない場合はプレースホルダーを表示
+ * メッセージリストコンポーネント（Slack 風）
+ * - 初回ロード時に最新メッセージを表示
+ * - 上スクロールで古いメッセージを追加読み込み
+ * - リアルタイムメッセージを下部に追加
  *
- * @param props - メッセージ一覧用 props
- * @returns メッセージ一覧の JSX 要素
+ * @param props - メッセージリスト用 props
+ * @returns メッセージリストの JSX 要素
  */
-export function MessageList({ messages, className }: MessageListProps): React.JSX.Element {
-  const { data: currentUser } = useCurrentUser();
-  const scrollRef = useRef<HTMLDivElement>(null);
+export function MessageList({ roomId, className }: MessageListProps): React.JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const prevScrollHeightRef = useRef(0);
+  const initialScrollDone = useRef(false);
 
-  useScrollToBottom(scrollRef, messages);
+  const { data: currentUser } = useCurrentUser();
+
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useRoomMessages(roomId);
+
+  // メッセージを日付でグループ化
+  const messageItems: MessageListItem[] = useMemo(() => {
+    if (!data?.pages) return [];
+
+    // 全ページのメッセージをフラット化（古い順に並べる）
+    const allMessages = data.pages
+      .flatMap((page) => page.data)
+      .sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+
+    return groupMessagesByDate(allMessages);
+  }, [data?.pages]);
+
+  // スクロール位置の監視
+  const handleScroll = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+
+    // 最下部付近かどうかを判定（50px の余裕）
+    isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 50;
+  }, []);
+
+  // 古いメッセージ読み込み後、スクロール位置を維持
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || isFetchingNextPage) return;
+
+    // スクロール位置を復元
+    if (prevScrollHeightRef.current > 0) {
+      const newScrollHeight = container.scrollHeight;
+      const scrollDiff = newScrollHeight - prevScrollHeightRef.current;
+      container.scrollTop += scrollDiff;
+    }
+  }, [data?.pages?.length, isFetchingNextPage]);
+
+  // 追加読み込みのトリガー
+  const handleLoadMore = useCallback(() => {
+    if (!hasNextPage || isFetchingNextPage) return;
+
+    const container = containerRef.current;
+    if (container) {
+      prevScrollHeightRef.current = container.scrollHeight;
+    }
+
+    fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  // 初回ロード完了時に最下部にスクロール
+  useEffect(() => {
+    if (!isLoading && messageItems.length > 0 && !initialScrollDone.current) {
+      // 少し待ってからスクロール（DOM 更新待ち）
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView();
+        initialScrollDone.current = true;
+      }, 100);
+    }
+  }, [isLoading, messageItems.length]);
+
+  // 新しいメッセージが追加されたときに最下部にいれば自動スクロール
+  useEffect(() => {
+    if (isNearBottomRef.current && initialScrollDone.current && messageItems.length > 0) {
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [messageItems.length]);
+
+  // ルームが変わったらスクロール状態をリセット
+  useEffect(() => {
+    initialScrollDone.current = false;
+    prevScrollHeightRef.current = 0;
+    isNearBottomRef.current = true;
+  }, [roomId]);
+
+  if (isLoading) {
+    return (
+      <div className={cn('flex flex-1 items-center justify-center', className)}>
+        <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className={cn('flex flex-1 items-center justify-center', className)}>
+        <p className="text-destructive">
+          メッセージの読み込みに失敗しました: {error?.message}
+        </p>
+      </div>
+    );
+  }
+
+  if (messageItems.length === 0) {
+    return (
+      <div className={cn('flex flex-1 items-center justify-center', className)}>
+        <p className="text-muted-foreground">
+          まだメッセージがありません。最初のメッセージを送信しましょう！
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <ScrollArea className={cn('px-4', className)}>
-      <div ref={scrollRef} className="space-y-4 py-4">
-        {messages.length === 0 ? (
-          <div className="text-muted-foreground flex h-full min-h-[200px] items-center justify-center">
-            メッセージはまだありません
-          </div>
-        ) : (
-          messages.map((message) => (
+    <div
+      ref={containerRef}
+      className={cn('flex flex-1 flex-col overflow-y-auto px-4', className)}
+      onScroll={handleScroll}
+    >
+      {/* 追加読み込みトリガー */}
+      {hasNextPage && (
+        <LoadMoreTrigger
+          onIntersect={handleLoadMore}
+          isLoading={isFetchingNextPage}
+        />
+      )}
+
+      {/* メッセージリスト */}
+      <div className="space-y-2 py-4">
+        {messageItems.map((item, index) =>
+          item.type === 'date-separator' ? (
+            <DateSeparator key={`date-${item.date}-${index}`} date={item.date} />
+          ) : (
             <MessageItem
-              key={message.id}
-              message={message}
-              isOwn={message.userId === currentUser?.id}
+              key={item.data.localId || item.data.id}
+              message={item.data}
+              isOwn={item.data.userId === currentUser?.id}
             />
-          ))
+          ),
         )}
       </div>
-    </ScrollArea>
+
+      {/* 最下部アンカー */}
+      <div ref={bottomRef} />
+    </div>
   );
 }

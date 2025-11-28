@@ -20,11 +20,18 @@ export { SidebarAccordion } from './components/sidebar-accordion';
 export { SidebarSection } from './components/sidebar-section';
 export { ChannelItem } from './components/channel-item';
 export { BrowseChannelsDialog } from './components/browse-channels-dialog';
+export { DateSeparator } from './components/date-separator';
+export { LoadMoreTrigger } from './components/load-more-trigger';
 
 // Hooks
 export { useChatSocket } from './hooks/use-chat-socket';
 export { useMessages } from './hooks/use-messages';
 export { useScrollToBottom } from './hooks/use-scroll-to-bottom';
+export {
+  useRoomMessages,
+  useMessageCacheUpdater,
+  roomMessagesKeys,
+} from './hooks/use-room-messages';
 export {
   useMyChannels,
   useStarredChannels,
@@ -60,6 +67,15 @@ export {
   inviteMembers,
   kickMember,
 } from './api/chat-rooms-api';
+export { fetchRoomMessages } from './api/messages-api';
+
+// Utils
+export {
+  groupMessagesByDate,
+  formatDateSeparator,
+  formatMessageTime,
+  getAvatarInitials,
+} from './utils/message-utils';
 
 // Types
 export type {

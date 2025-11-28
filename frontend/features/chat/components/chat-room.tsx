@@ -9,7 +9,6 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useChatSocket } from '../hooks/use-chat-socket';
-import { useMessages } from '../hooks/use-messages';
 import { fetchChatRoom } from '../api/chat-rooms-api';
 import { RoomHeader } from './room-header';
 import { MessageList } from './message-list';
@@ -37,7 +36,6 @@ type ChatRoomProps = {
 export function ChatRoom({ roomId }: ChatRoomProps): React.JSX.Element {
   const { joinRoom, leaveRoom, sendMessage, isConnected, connectionStatus } =
     useChatSocket();
-  const messages = useMessages(roomId);
 
   // ルーム情報を API から取得
   const {
@@ -112,7 +110,7 @@ export function ChatRoom({ roomId }: ChatRoomProps): React.JSX.Element {
         </div>
       )}
 
-      <MessageList messages={messages} className="flex-1" />
+      <MessageList roomId={roomId} className="flex-1" />
 
       {/* タイピングインジケーター */}
       <TypingIndicator roomId={roomId} />

@@ -51,6 +51,16 @@ function getAvatarInitials(username?: string, userId?: number): string {
 }
 
 /**
+ * メッセージからユーザー名を取得
+ * API からのメッセージは user.username、Socket.IO からは username がトップレベル
+ * @param message - メッセージオブジェクト
+ * @returns ユーザー名
+ */
+function getUsername(message: Message): string | undefined {
+  return message.user?.username ?? message.username;
+}
+
+/**
  * メッセージアイテム内部コンポーネント
  * クライアントコンポーネントとして以下の機能を提供:
  * - 自分のメッセージは右寄せ、他者は左寄せで表示
@@ -66,6 +76,7 @@ function MessageItemComponent({
   isOwn,
 }: MessageItemProps): React.JSX.Element {
   const isPending = message.isPending ?? false;
+  const username = getUsername(message);
 
   return (
     <div
@@ -78,16 +89,16 @@ function MessageItemComponent({
       {!isOwn && (
         <Avatar className="h-8 w-8 shrink-0">
           <AvatarFallback className="text-xs">
-            {getAvatarInitials(message.username, message.userId)}
+            {getAvatarInitials(username, message.userId)}
           </AvatarFallback>
         </Avatar>
       )}
 
       <div className={cn('max-w-[70%]', !isOwn && 'space-y-1')}>
         {/* 他者のメッセージにはユーザー名を表示 */}
-        {!isOwn && message.username && (
+        {!isOwn && username && (
           <span className="text-muted-foreground ml-1 text-xs">
-            {message.username}
+            {username}
           </span>
         )}
 

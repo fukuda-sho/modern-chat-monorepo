@@ -5,8 +5,10 @@
 
 import { io, Socket } from 'socket.io-client';
 import { WS_URL, RECONNECT_CONFIG, AUTH_TOKEN_KEY } from './constants';
+import { getQueryClient } from './query-client';
 import { useChatStore } from '@/features/chat/store/chat-store';
 import { usePresenceStore } from '@/features/presence/store/presence-store';
+import { roomMessagesKeys } from '@/features/chat/hooks/use-room-messages';
 import type {
   MessageCreatedPayload,
   RoomJoinedPayload,
@@ -22,6 +24,8 @@ import type {
   GetOnlineUsersPayload,
   StartTypingPayload,
   StopTypingPayload,
+  Message,
+  MessageHistoryResponse,
 } from '@/types';
 
 /**
@@ -170,26 +174,24 @@ class SocketService {
     this.socket.on('messageCreated', (payload) => {
       console.log('[Socket] Message received:', payload);
 
-      // localId があればオプティミスティック更新の確定
+      const message: Message = {
+        id: payload.id,
+        roomId: payload.roomId,
+        userId: payload.userId,
+        username: payload.username,
+        content: payload.content,
+        createdAt: payload.createdAt,
+        localId: payload.localId,
+      };
+
+      // TanStack Query キャッシュを更新
+      this.updateQueryCache(payload.roomId, message, payload.localId);
+
+      // Zustand ストアも更新（後方互換性のため）
       if (payload.localId) {
-        useChatStore.getState().confirmMessage(payload.roomId, payload.localId, {
-          id: payload.id,
-          roomId: payload.roomId,
-          userId: payload.userId,
-          username: payload.username,
-          content: payload.content,
-          createdAt: payload.createdAt,
-        });
+        useChatStore.getState().confirmMessage(payload.roomId, payload.localId, message);
       } else {
-        // 他のユーザーからのメッセージ
-        useChatStore.getState().addMessage(payload.roomId, {
-          id: payload.id,
-          roomId: payload.roomId,
-          userId: payload.userId,
-          username: payload.username,
-          content: payload.content,
-          createdAt: payload.createdAt,
-        });
+        useChatStore.getState().addMessage(payload.roomId, message);
       }
     });
 
@@ -335,6 +337,69 @@ class SocketService {
    */
   isConnected(): boolean {
     return this.socket?.connected ?? false;
+  }
+
+  /**
+   * TanStack Query キャッシュを更新
+   * @param roomId ルームID
+   * @param message メッセージ
+   * @param localId ローカルID（オプティミスティック更新用）
+   */
+  private updateQueryCache(roomId: number, message: Message, localId?: string): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: MessageHistoryResponse[];
+      pageParams: (number | undefined)[];
+    }>(roomMessagesKeys.room(roomId), (oldData) => {
+      if (!oldData) {
+        // キャッシュがない場合は新しいページを作成
+        return {
+          pages: [
+            {
+              data: [message],
+              pagination: { hasMore: false, nextCursor: null, prevCursor: null },
+            },
+          ],
+          pageParams: [undefined],
+        };
+      }
+
+      // localId がある場合はオプティミスティック更新の確定
+      if (localId) {
+        const newPages = oldData.pages.map((page) => ({
+          ...page,
+          data: page.data.map((msg) =>
+            msg.localId === localId ? { ...message, isPending: false } : msg,
+          ),
+        }));
+
+        return {
+          ...oldData,
+          pages: newPages,
+        };
+      }
+
+      // 新着メッセージを最初のページに追加
+      const newPages = [...oldData.pages];
+      if (newPages.length > 0) {
+        // 重複チェック
+        const allMessages = newPages.flatMap((p) => p.data);
+        if (allMessages.some((m) => m.id === message.id)) {
+          return oldData;
+        }
+
+        newPages[0] = {
+          ...newPages[0],
+          data: [...newPages[0].data, message],
+        };
+      }
+
+      return {
+        ...oldData,
+        pages: newPages,
+      };
+    });
   }
 }
 
