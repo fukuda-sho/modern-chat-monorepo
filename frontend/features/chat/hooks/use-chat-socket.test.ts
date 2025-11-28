@@ -41,23 +41,33 @@ describe("useChatSocket", () => {
       expect(mockSocketService.connectWithStoredToken).toHaveBeenCalledTimes(1);
     });
 
-    it("アンマウント時に disconnect が呼ばれる", () => {
+    it("アンマウント時に disconnect が呼ばれない（複数コンポーネント対応）", () => {
+      // 複数コンポーネントが useChatSocket() を使用するため、
+      // 個別コンポーネントのアンマウント時に切断すると他のコンポーネントに影響する。
+      // そのためアンマウント時の disconnect は行わない。
       const { unmount } = renderHook(() => useChatSocket());
 
       unmount();
 
-      expect(mockSocketService.disconnect).toHaveBeenCalledTimes(1);
+      expect(mockSocketService.disconnect).not.toHaveBeenCalled();
     });
 
-    it("再マウント時に再接続される", () => {
-      const { unmount, rerender } = renderHook(() => useChatSocket());
-
-      // 最初のマウント
+    it("複数のフックインスタンスがあっても接続は共有される", () => {
+      // 最初のコンポーネント
+      const { unmount: unmount1 } = renderHook(() => useChatSocket());
       expect(mockSocketService.connectWithStoredToken).toHaveBeenCalledTimes(1);
 
-      // アンマウント
-      unmount();
-      expect(mockSocketService.disconnect).toHaveBeenCalledTimes(1);
+      // 2つ目のコンポーネント（ThreadPane など）
+      const { unmount: unmount2 } = renderHook(() => useChatSocket());
+      expect(mockSocketService.connectWithStoredToken).toHaveBeenCalledTimes(2);
+
+      // 2つ目のコンポーネントがアンマウントされても切断されない
+      unmount2();
+      expect(mockSocketService.disconnect).not.toHaveBeenCalled();
+
+      // 1つ目のコンポーネントがアンマウントされても切断されない
+      unmount1();
+      expect(mockSocketService.disconnect).not.toHaveBeenCalled();
     });
   });
 

@@ -16,12 +16,11 @@ export function useChatSocket() {
   const isConnected = connectionStatus === 'connected';
 
   // コンポーネントマウント時に接続
+  // NOTE: disconnect はここでは行わない。複数コンポーネントが useChatSocket() を
+  // 使用するため、個別コンポーネントのアンマウント時に切断すると他のコンポーネントに影響する。
+  // 接続の終了はログアウト時などアプリケーションレベルで管理する。
   useEffect(() => {
     socketService.connectWithStoredToken();
-
-    return () => {
-      socketService.disconnect();
-    };
   }, []);
 
   // ルーム参加
