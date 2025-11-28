@@ -11,6 +11,15 @@ export interface MessageUser {
   email: string;
 }
 
+/**
+ * リアクション集計情報
+ */
+export interface ReactionSummary {
+  emoji: string;
+  count: number;
+  userIds: number[];
+}
+
 export interface Message {
   id: number;
   roomId: number;
@@ -22,6 +31,14 @@ export interface Message {
   isPending?: boolean;
   /** API から取得したメッセージに含まれるユーザー情報 */
   user?: MessageUser;
+  /** 編集済みフラグ */
+  isEdited?: boolean;
+  /** 編集日時（ISO 8601 形式） */
+  editedAt?: string | null;
+  /** 削除済みフラグ */
+  isDeleted?: boolean;
+  /** リアクション一覧 */
+  reactions?: ReactionSummary[];
 }
 
 // ========================================
@@ -169,6 +186,85 @@ export interface ErrorPayload {
   message: string;
   code?: string;
   localId?: string;
+}
+
+// ========================================
+// メッセージ編集・削除関連
+// ========================================
+
+/**
+ * メッセージ編集リクエストペイロード
+ */
+export interface EditMessagePayload {
+  messageId: number;
+  content: string;
+}
+
+/**
+ * メッセージ削除リクエストペイロード
+ */
+export interface DeleteMessagePayload {
+  messageId: number;
+}
+
+/**
+ * メッセージ更新イベントペイロード（サーバーから）
+ */
+export interface MessageUpdatedPayload {
+  id: number;
+  roomId: number;
+  content: string;
+  isEdited: boolean;
+  editedAt: string;
+}
+
+/**
+ * メッセージ削除イベントペイロード（サーバーから）
+ */
+export interface MessageDeletedPayload {
+  id: number;
+  roomId: number;
+}
+
+// ========================================
+// リアクション関連
+// ========================================
+
+/**
+ * リアクション追加リクエストペイロード
+ */
+export interface AddReactionPayload {
+  messageId: number;
+  emoji: string;
+}
+
+/**
+ * リアクション削除リクエストペイロード
+ */
+export interface RemoveReactionPayload {
+  messageId: number;
+  emoji: string;
+}
+
+/**
+ * リアクション追加イベントペイロード（サーバーから）
+ */
+export interface ReactionAddedPayload {
+  messageId: number;
+  roomId: number;
+  emoji: string;
+  userId: number;
+  username: string;
+}
+
+/**
+ * リアクション削除イベントペイロード（サーバーから）
+ */
+export interface ReactionRemovedPayload {
+  messageId: number;
+  roomId: number;
+  emoji: string;
+  userId: number;
 }
 
 // ========================================

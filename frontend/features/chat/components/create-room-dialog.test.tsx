@@ -87,6 +87,7 @@ describe('CreateRoomDialog', () => {
       name: 'test-room',
       createdAt: '2024-01-01T00:00:00Z',
       createdByUserId: 1,
+      type: 'PUBLIC',
     };
     mockCreateChatRoom.mockResolvedValue(mockRoom);
 
@@ -115,6 +116,7 @@ describe('CreateRoomDialog', () => {
       name: 'new-room',
       createdAt: '2024-01-01T00:00:00Z',
       createdByUserId: 1,
+      type: 'PUBLIC',
     };
     mockCreateChatRoom.mockResolvedValue(mockRoom);
 
@@ -135,7 +137,7 @@ describe('CreateRoomDialog', () => {
 
     // 既存のキャッシュを設定
     const existingRooms: ChatRoom[] = [
-      { id: 1, name: 'general', createdAt: '2024-01-01T00:00:00Z', createdByUserId: 1 },
+      { id: 1, name: 'general', createdAt: '2024-01-01T00:00:00Z', createdByUserId: 1, type: 'PUBLIC' },
     ];
     queryClient.setQueryData(CHAT_ROOMS_QUERY_KEY, existingRooms);
 
@@ -144,6 +146,7 @@ describe('CreateRoomDialog', () => {
       name: 'new-room',
       createdAt: '2024-01-01T00:00:00Z',
       createdByUserId: 1,
+      type: 'PUBLIC',
     };
     mockCreateChatRoom.mockResolvedValue(mockRoom);
 
@@ -201,6 +204,7 @@ describe('CreateRoomDialog', () => {
       name: 'trimmed-room',
       createdAt: '2024-01-01T00:00:00Z',
       createdByUserId: 1,
+      type: 'PUBLIC',
     };
     mockCreateChatRoom.mockResolvedValue(mockRoom);
 
@@ -244,6 +248,7 @@ describe('CreateRoomDialog', () => {
       name: 'test-room',
       createdAt: '2024-01-01T00:00:00Z',
       createdByUserId: 1,
+      type: 'PUBLIC',
     });
   });
 
@@ -256,6 +261,7 @@ describe('CreateRoomDialog', () => {
       name: 'test-room',
       createdAt: '2024-01-01T00:00:00Z',
       createdByUserId: 1,
+      type: 'PUBLIC',
     };
     mockCreateChatRoom.mockResolvedValue(mockRoom);
 

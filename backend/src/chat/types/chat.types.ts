@@ -206,6 +206,108 @@ export interface MemberLeftPayload {
 }
 
 // ========================================
+// メッセージ編集・削除
+// ========================================
+
+/**
+ * editMessage イベントのペイロード
+ */
+export interface EditMessagePayload {
+  /** 編集するメッセージの ID */
+  messageId: number;
+  /** 新しいメッセージ内容 */
+  content: string;
+}
+
+/**
+ * deleteMessage イベントのペイロード
+ */
+export interface DeleteMessagePayload {
+  /** 削除するメッセージの ID */
+  messageId: number;
+}
+
+/**
+ * messageUpdated イベントのペイロード
+ */
+export interface MessageUpdatedPayload {
+  /** メッセージ ID */
+  id: number;
+  /** ルーム ID */
+  roomId: number;
+  /** 新しいメッセージ内容 */
+  content: string;
+  /** 編集済みフラグ */
+  isEdited: boolean;
+  /** 編集日時（ISO 8601 形式） */
+  editedAt: string;
+}
+
+/**
+ * messageDeleted イベントのペイロード
+ */
+export interface MessageDeletedPayload {
+  /** メッセージ ID */
+  id: number;
+  /** ルーム ID */
+  roomId: number;
+}
+
+// ========================================
+// リアクション関連
+// ========================================
+
+/**
+ * addReaction イベントのペイロード
+ */
+export interface AddReactionPayload {
+  /** リアクションを追加するメッセージの ID */
+  messageId: number;
+  /** 絵文字（Unicode または shortcode） */
+  emoji: string;
+}
+
+/**
+ * removeReaction イベントのペイロード
+ */
+export interface RemoveReactionPayload {
+  /** リアクションを削除するメッセージの ID */
+  messageId: number;
+  /** 絵文字 */
+  emoji: string;
+}
+
+/**
+ * reactionAdded イベントのペイロード
+ */
+export interface ReactionAddedPayload {
+  /** メッセージ ID */
+  messageId: number;
+  /** ルーム ID */
+  roomId: number;
+  /** 絵文字 */
+  emoji: string;
+  /** ユーザー ID */
+  userId: number;
+  /** ユーザー名 */
+  username: string;
+}
+
+/**
+ * reactionRemoved イベントのペイロード
+ */
+export interface ReactionRemovedPayload {
+  /** メッセージ ID */
+  messageId: number;
+  /** ルーム ID */
+  roomId: number;
+  /** 絵文字 */
+  emoji: string;
+  /** ユーザー ID */
+  userId: number;
+}
+
+// ========================================
 // Socket イベント名定義
 // ========================================
 
@@ -219,6 +321,10 @@ export const ClientEvents = {
   GET_ONLINE_USERS: 'getOnlineUsers',
   START_TYPING: 'startTyping',
   STOP_TYPING: 'stopTyping',
+  EDIT_MESSAGE: 'editMessage',
+  DELETE_MESSAGE: 'deleteMessage',
+  ADD_REACTION: 'addReaction',
+  REMOVE_REACTION: 'removeReaction',
 } as const;
 
 /**
@@ -228,6 +334,10 @@ export const ServerEvents = {
   ROOM_JOINED: 'roomJoined',
   ROOM_LEFT: 'roomLeft',
   MESSAGE_CREATED: 'messageCreated',
+  MESSAGE_UPDATED: 'messageUpdated',
+  MESSAGE_DELETED: 'messageDeleted',
+  REACTION_ADDED: 'reactionAdded',
+  REACTION_REMOVED: 'reactionRemoved',
   ERROR: 'error',
   USER_ONLINE: 'userOnline',
   USER_OFFLINE: 'userOffline',

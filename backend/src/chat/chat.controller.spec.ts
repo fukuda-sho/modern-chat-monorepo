@@ -31,6 +31,10 @@ describe('ChatController', () => {
           email: 'test@example.com',
         },
         createdAt: '2025-11-27T10:00:00.000Z',
+        isEdited: false,
+        editedAt: null,
+        isDeleted: false,
+        reactions: [],
       },
     ],
     pagination: {

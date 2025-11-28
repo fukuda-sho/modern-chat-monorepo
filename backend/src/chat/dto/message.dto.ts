@@ -30,6 +30,29 @@ export class UserBriefDto {
 }
 
 /**
+ * リアクション集計情報 DTO
+ */
+export class ReactionSummaryDto {
+  @ApiProperty({
+    description: '絵文字',
+    example: '👍',
+  })
+  emoji: string;
+
+  @ApiProperty({
+    description: 'リアクション数',
+    example: 3,
+  })
+  count: number;
+
+  @ApiProperty({
+    description: 'リアクションしたユーザー ID 一覧',
+    example: [1, 2, 3],
+  })
+  userIds: number[];
+}
+
+/**
  * メッセージ DTO
  * @description API レスポンスのメッセージ形式
  */
@@ -69,6 +92,31 @@ export class MessageDto {
     example: '2025-11-27T10:30:00.000Z',
   })
   createdAt: string;
+
+  @ApiProperty({
+    description: '編集済みかどうか',
+    example: false,
+  })
+  isEdited: boolean;
+
+  @ApiProperty({
+    description: '編集日時（ISO 8601 形式）',
+    example: '2025-11-27T11:00:00.000Z',
+    nullable: true,
+  })
+  editedAt: string | null;
+
+  @ApiProperty({
+    description: '削除済みかどうか',
+    example: false,
+  })
+  isDeleted: boolean;
+
+  @ApiProperty({
+    description: 'リアクション一覧',
+    type: [ReactionSummaryDto],
+  })
+  reactions: ReactionSummaryDto[];
 }
 
 /**

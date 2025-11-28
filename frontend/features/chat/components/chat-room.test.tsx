@@ -57,7 +57,24 @@ vi.mock('@/lib/socket', () => ({
   socketService: {
     startTyping: vi.fn(),
     stopTyping: vi.fn(),
+    editMessage: vi.fn(),
+    deleteMessage: vi.fn(),
+    addReaction: vi.fn(),
+    removeReaction: vi.fn(),
   },
+}));
+
+// useRoomMessages フックのモック
+vi.mock('../hooks/use-room-messages', () => ({
+  useRoomMessages: () => ({
+    data: { pages: [{ data: [], pagination: { hasMore: false, nextCursor: null, prevCursor: null } }] },
+    isLoading: false,
+    isError: false,
+    error: null,
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isFetchingNextPage: false,
+  }),
 }));
 
 // API のモック
@@ -209,7 +226,7 @@ describe('ChatRoom', () => {
     // ルーム読み込み完了を待つ
     await screen.findByText('general');
 
-    expect(screen.getByText('メッセージはまだありません')).toBeInTheDocument();
+    expect(screen.getByText(/まだメッセージがありません/)).toBeInTheDocument();
   });
 
   it('メッセージ入力フィールドが表示される', async () => {

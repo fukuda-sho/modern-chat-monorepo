@@ -26,6 +26,14 @@ import type {
   StopTypingPayload,
   Message,
   MessageHistoryResponse,
+  EditMessagePayload,
+  DeleteMessagePayload,
+  AddReactionPayload,
+  RemoveReactionPayload,
+  MessageUpdatedPayload,
+  MessageDeletedPayload,
+  ReactionAddedPayload,
+  ReactionRemovedPayload,
 } from '@/types';
 
 /**
@@ -35,6 +43,10 @@ interface ServerToClientEvents {
   roomJoined: (payload: RoomJoinedPayload) => void;
   roomLeft: (payload: RoomLeftPayload) => void;
   messageCreated: (payload: MessageCreatedPayload) => void;
+  messageUpdated: (payload: MessageUpdatedPayload) => void;
+  messageDeleted: (payload: MessageDeletedPayload) => void;
+  reactionAdded: (payload: ReactionAddedPayload) => void;
+  reactionRemoved: (payload: ReactionRemovedPayload) => void;
   error: (payload: ErrorPayload) => void;
   userOnline: (payload: UserOnlinePayload) => void;
   userOffline: (payload: UserOfflinePayload) => void;
@@ -49,6 +61,10 @@ interface ClientToServerEvents {
   joinRoom: (payload: JoinRoomPayload) => void;
   leaveRoom: (payload: LeaveRoomPayload) => void;
   sendMessage: (payload: SendMessagePayload) => void;
+  editMessage: (payload: EditMessagePayload) => void;
+  deleteMessage: (payload: DeleteMessagePayload) => void;
+  addReaction: (payload: AddReactionPayload) => void;
+  removeReaction: (payload: RemoveReactionPayload) => void;
   getOnlineUsers: (payload: GetOnlineUsersPayload) => void;
   startTyping: (payload: StartTypingPayload) => void;
   stopTyping: (payload: StopTypingPayload) => void;
@@ -244,6 +260,55 @@ class SocketService {
         payload.isTyping
       );
     });
+
+    // ========================================
+    // メッセージ編集・削除イベント
+    // ========================================
+
+    // メッセージ更新
+    this.socket.on('messageUpdated', (payload) => {
+      console.log('[Socket] Message updated:', payload);
+      this.updateMessageInCache(payload.roomId, payload.id, {
+        content: payload.content,
+        isEdited: payload.isEdited,
+        editedAt: payload.editedAt,
+      });
+    });
+
+    // メッセージ削除
+    this.socket.on('messageDeleted', (payload) => {
+      console.log('[Socket] Message deleted:', payload);
+      this.updateMessageInCache(payload.roomId, payload.id, {
+        isDeleted: true,
+        content: '',
+      });
+    });
+
+    // ========================================
+    // リアクションイベント
+    // ========================================
+
+    // リアクション追加
+    this.socket.on('reactionAdded', (payload) => {
+      console.log('[Socket] Reaction added:', payload);
+      this.addReactionToCache(
+        payload.roomId,
+        payload.messageId,
+        payload.emoji,
+        payload.userId
+      );
+    });
+
+    // リアクション削除
+    this.socket.on('reactionRemoved', (payload) => {
+      console.log('[Socket] Reaction removed:', payload);
+      this.removeReactionFromCache(
+        payload.roomId,
+        payload.messageId,
+        payload.emoji,
+        payload.userId
+      );
+    });
   }
 
   /**
@@ -333,6 +398,50 @@ class SocketService {
   }
 
   /**
+   * メッセージを編集
+   */
+  editMessage(messageId: number, content: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot edit message');
+      return;
+    }
+    this.socket.emit('editMessage', { messageId, content });
+  }
+
+  /**
+   * メッセージを削除
+   */
+  deleteMessage(messageId: number): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot delete message');
+      return;
+    }
+    this.socket.emit('deleteMessage', { messageId });
+  }
+
+  /**
+   * リアクションを追加
+   */
+  addReaction(messageId: number, emoji: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot add reaction');
+      return;
+    }
+    this.socket.emit('addReaction', { messageId, emoji });
+  }
+
+  /**
+   * リアクションを削除
+   */
+  removeReaction(messageId: number, emoji: string): void {
+    if (!this.socket?.connected) {
+      console.warn('[Socket] Not connected, cannot remove reaction');
+      return;
+    }
+    this.socket.emit('removeReaction', { messageId, emoji });
+  }
+
+  /**
    * 接続状態を取得
    */
   isConnected(): boolean {
@@ -394,6 +503,139 @@ class SocketService {
           data: [...newPages[0].data, message],
         };
       }
+
+      return {
+        ...oldData,
+        pages: newPages,
+      };
+    });
+  }
+
+  /**
+   * キャッシュ内のメッセージを更新
+   * @param roomId ルームID
+   * @param messageId メッセージID
+   * @param updates 更新するフィールド
+   */
+  private updateMessageInCache(
+    roomId: number,
+    messageId: number,
+    updates: Partial<Message>
+  ): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: MessageHistoryResponse[];
+      pageParams: (number | undefined)[];
+    }>(roomMessagesKeys.room(roomId), (oldData) => {
+      if (!oldData) return oldData;
+
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        data: page.data.map((msg) =>
+          msg.id === messageId ? { ...msg, ...updates } : msg
+        ),
+      }));
+
+      return {
+        ...oldData,
+        pages: newPages,
+      };
+    });
+  }
+
+  /**
+   * キャッシュ内のメッセージにリアクションを追加
+   */
+  private addReactionToCache(
+    roomId: number,
+    messageId: number,
+    emoji: string,
+    userId: number
+  ): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: MessageHistoryResponse[];
+      pageParams: (number | undefined)[];
+    }>(roomMessagesKeys.room(roomId), (oldData) => {
+      if (!oldData) return oldData;
+
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        data: page.data.map((msg) => {
+          if (msg.id !== messageId) return msg;
+
+          const reactions = msg.reactions || [];
+          const existingReaction = reactions.find((r) => r.emoji === emoji);
+
+          if (existingReaction) {
+            // 既存のリアクションに追加（重複防止）
+            if (existingReaction.userIds.includes(userId)) {
+              return msg;
+            }
+            return {
+              ...msg,
+              reactions: reactions.map((r) =>
+                r.emoji === emoji
+                  ? { ...r, count: r.count + 1, userIds: [...r.userIds, userId] }
+                  : r
+              ),
+            };
+          } else {
+            // 新しいリアクションを追加
+            return {
+              ...msg,
+              reactions: [...reactions, { emoji, count: 1, userIds: [userId] }],
+            };
+          }
+        }),
+      }));
+
+      return {
+        ...oldData,
+        pages: newPages,
+      };
+    });
+  }
+
+  /**
+   * キャッシュ内のメッセージからリアクションを削除
+   */
+  private removeReactionFromCache(
+    roomId: number,
+    messageId: number,
+    emoji: string,
+    userId: number
+  ): void {
+    const queryClient = getQueryClient();
+
+    queryClient.setQueryData<{
+      pages: MessageHistoryResponse[];
+      pageParams: (number | undefined)[];
+    }>(roomMessagesKeys.room(roomId), (oldData) => {
+      if (!oldData) return oldData;
+
+      const newPages = oldData.pages.map((page) => ({
+        ...page,
+        data: page.data.map((msg) => {
+          if (msg.id !== messageId) return msg;
+
+          const reactions = msg.reactions || [];
+          const updatedReactions = reactions
+            .map((r) => {
+              if (r.emoji !== emoji) return r;
+              const newUserIds = r.userIds.filter((id) => id !== userId);
+              return { ...r, count: newUserIds.length, userIds: newUserIds };
+            })
+            .filter((r) => r.count > 0); // 0件になったリアクションは削除
+
+          return {
+            ...msg,
+            reactions: updatedReactions,
+          };
+        }),
+      }));
 
       return {
         ...oldData,

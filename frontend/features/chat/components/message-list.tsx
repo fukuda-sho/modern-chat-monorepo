@@ -186,6 +186,7 @@ export function MessageList({ roomId, className }: MessageListProps): React.JSX.
               key={item.data.localId || item.data.id}
               message={item.data}
               isOwn={item.data.userId === currentUser?.id}
+              currentUserId={currentUser?.id ?? 0}
             />
           ),
         )}

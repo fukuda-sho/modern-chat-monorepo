@@ -18,6 +18,15 @@ describe('ChatService', () => {
     message: {
       findUnique: jest.Mock;
       findMany: jest.Mock;
+      update: jest.Mock;
+    };
+    user: {
+      findUnique: jest.Mock;
+    };
+    reaction: {
+      findUnique: jest.Mock;
+      upsert: jest.Mock;
+      delete: jest.Mock;
     };
   };
   let mockMembershipService: {
@@ -46,7 +55,12 @@ describe('ChatService', () => {
       chatRoomId: 1,
       userId: 1,
       createdAt: new Date('2025-11-27T10:00:00Z'),
+      isEdited: false,
+      editedAt: null,
+      isDeleted: false,
+      deletedAt: null,
       user: mockUser,
+      reactions: [],
     },
     {
       id: 99,
@@ -54,7 +68,16 @@ describe('ChatService', () => {
       chatRoomId: 1,
       userId: 1,
       createdAt: new Date('2025-11-27T09:00:00Z'),
+      isEdited: false,
+      editedAt: null,
+      isDeleted: false,
+      deletedAt: null,
       user: mockUser,
+      reactions: [
+        { emoji: '👍', userId: 1 },
+        { emoji: '👍', userId: 2 },
+        { emoji: '❤️', userId: 1 },
+      ],
     },
     {
       id: 98,
@@ -62,7 +85,12 @@ describe('ChatService', () => {
       chatRoomId: 1,
       userId: 1,
       createdAt: new Date('2025-11-27T08:00:00Z'),
+      isEdited: false,
+      editedAt: null,
+      isDeleted: false,
+      deletedAt: null,
       user: mockUser,
+      reactions: [],
     },
   ];
 
@@ -74,6 +102,15 @@ describe('ChatService', () => {
       message: {
         findUnique: jest.fn(),
         findMany: jest.fn(),
+        update: jest.fn(),
+      },
+      user: {
+        findUnique: jest.fn(),
+      },
+      reaction: {
+        findUnique: jest.fn(),
+        upsert: jest.fn(),
+        delete: jest.fn(),
       },
     };
 
@@ -294,6 +331,211 @@ describe('ChatService', () => {
           }),
         );
       });
+    });
+
+    describe('リアクション集計', () => {
+      it('リアクションが絵文字ごとに集計されること', async () => {
+        mockPrismaService.chatRoom.findUnique.mockResolvedValue(mockRoom);
+        mockMembershipService.canAccessChannel.mockResolvedValue(true);
+        mockPrismaService.message.findMany.mockResolvedValue([mockMessages[1]]);
+
+        const result = await service.getMessageHistory(1, 1, {
+          limit: 50,
+          direction: 'older',
+        });
+
+        expect(result.data[0].reactions).toHaveLength(2);
+        const thumbsUp = result.data[0].reactions.find((r) => r.emoji === '👍');
+        expect(thumbsUp?.count).toBe(2);
+        expect(thumbsUp?.userIds).toEqual([1, 2]);
+        const heart = result.data[0].reactions.find((r) => r.emoji === '❤️');
+        expect(heart?.count).toBe(1);
+        expect(heart?.userIds).toEqual([1]);
+      });
+    });
+  });
+
+  describe('editMessage', () => {
+    const mockMessage = {
+      id: 100,
+      content: 'Original message',
+      chatRoomId: 1,
+      userId: 1,
+      isEdited: false,
+      editedAt: null,
+      isDeleted: false,
+    };
+
+    it('自分のメッセージを編集できること', async () => {
+      const editedAt = new Date();
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockPrismaService.message.update.mockResolvedValue({
+        ...mockMessage,
+        content: 'Edited message',
+        isEdited: true,
+        editedAt,
+      });
+
+      const result = await service.editMessage(100, 1, 'Edited message');
+
+      expect(result.id).toBe(100);
+      expect(result.content).toBe('Edited message');
+      expect(result.isEdited).toBe(true);
+      expect(result.editedAt).toBe(editedAt.toISOString());
+    });
+
+    it('存在しないメッセージで404エラーを返すこと', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(null);
+
+      await expect(service.editMessage(999, 1, 'New content')).rejects.toThrow(NotFoundException);
+    });
+
+    it('他人のメッセージを編集しようとすると403エラーを返すこと', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+
+      await expect(service.editMessage(100, 999, 'New content')).rejects.toThrow(ForbiddenException);
+    });
+
+    it('削除済みメッセージを編集しようとすると403エラーを返すこと', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessage,
+        isDeleted: true,
+      });
+
+      await expect(service.editMessage(100, 1, 'New content')).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('deleteMessage', () => {
+    const mockMessage = {
+      id: 100,
+      content: 'Message to delete',
+      chatRoomId: 1,
+      userId: 1,
+      isDeleted: false,
+    };
+
+    it('自分のメッセージを削除できること', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockPrismaService.message.update.mockResolvedValue({
+        ...mockMessage,
+        isDeleted: true,
+        deletedAt: new Date(),
+      });
+
+      const result = await service.deleteMessage(100, 1);
+
+      expect(result.id).toBe(100);
+      expect(result.roomId).toBe(1);
+      expect(mockPrismaService.message.update).toHaveBeenCalledWith({
+        where: { id: 100 },
+        data: {
+          isDeleted: true,
+          deletedAt: expect.any(Date),
+        },
+      });
+    });
+
+    it('存在しないメッセージで404エラーを返すこと', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(null);
+
+      await expect(service.deleteMessage(999, 1)).rejects.toThrow(NotFoundException);
+    });
+
+    it('他人のメッセージを削除しようとすると403エラーを返すこと', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+
+      await expect(service.deleteMessage(100, 999)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('既に削除済みのメッセージで403エラーを返すこと', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue({
+        ...mockMessage,
+        isDeleted: true,
+      });
+
+      await expect(service.deleteMessage(100, 1)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('addReaction', () => {
+    const mockMessage = {
+      id: 100,
+      chatRoomId: 1,
+      chatRoom: mockRoom,
+    };
+
+    it('リアクションを追加できること', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockMembershipService.canAccessChannel.mockResolvedValue(true);
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.reaction.upsert.mockResolvedValue({
+        id: 1,
+        emoji: '👍',
+        userId: 1,
+        messageId: 100,
+      });
+
+      const result = await service.addReaction(100, 1, '👍');
+
+      expect(result.messageId).toBe(100);
+      expect(result.roomId).toBe(1);
+      expect(result.emoji).toBe('👍');
+      expect(result.userId).toBe(1);
+      expect(result.username).toBe('testuser');
+    });
+
+    it('存在しないメッセージで404エラーを返すこと', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(null);
+
+      await expect(service.addReaction(999, 1, '👍')).rejects.toThrow(NotFoundException);
+    });
+
+    it('アクセス権のないルームで403エラーを返すこと', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockMembershipService.canAccessChannel.mockResolvedValue(false);
+
+      await expect(service.addReaction(100, 999, '👍')).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('removeReaction', () => {
+    const mockMessage = {
+      id: 100,
+      chatRoomId: 1,
+    };
+
+    const mockReaction = {
+      id: 1,
+      emoji: '👍',
+      userId: 1,
+      messageId: 100,
+    };
+
+    it('リアクションを削除できること', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockPrismaService.reaction.findUnique.mockResolvedValue(mockReaction);
+      mockPrismaService.reaction.delete.mockResolvedValue(mockReaction);
+
+      const result = await service.removeReaction(100, 1, '👍');
+
+      expect(result.messageId).toBe(100);
+      expect(result.roomId).toBe(1);
+      expect(result.emoji).toBe('👍');
+      expect(result.userId).toBe(1);
+    });
+
+    it('存在しないメッセージで404エラーを返すこと', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(null);
+
+      await expect(service.removeReaction(999, 1, '👍')).rejects.toThrow(NotFoundException);
+    });
+
+    it('存在しないリアクションで404エラーを返すこと', async () => {
+      mockPrismaService.message.findUnique.mockResolvedValue(mockMessage);
+      mockPrismaService.reaction.findUnique.mockResolvedValue(null);
+
+      await expect(service.removeReaction(100, 1, '👍')).rejects.toThrow(NotFoundException);
     });
   });
 });

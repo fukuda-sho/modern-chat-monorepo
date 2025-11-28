@@ -36,7 +36,16 @@ import {
   UserTypingPayload,
   MemberJoinedPayload,
   MemberLeftPayload,
+  EditMessagePayload,
+  DeleteMessagePayload,
+  AddReactionPayload,
+  RemoveReactionPayload,
+  MessageUpdatedPayload,
+  MessageDeletedPayload,
+  ReactionAddedPayload,
+  ReactionRemovedPayload,
 } from './types/chat.types';
+import { ChatService } from './chat.service';
 
 /**
  * Socket with user data の型定義
@@ -87,11 +96,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @param {PrismaService} prisma - Prisma サービスインスタンス
    * @param {JwtService} jwtService - JWT サービスインスタンス
    * @param {ChannelMembershipService} membershipService - メンバーシップサービスインスタンス
+   * @param {ChatService} chatService - チャットサービスインスタンス
    */
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly membershipService: ChannelMembershipService,
+    private readonly chatService: ChatService,
   ) {}
 
   // ========================================
@@ -300,6 +311,168 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'メッセージの送信に失敗しました',
         code: 'MESSAGE_SEND_FAILED',
         localId,
+      } satisfies ErrorPayload);
+    }
+  }
+
+  // ========================================
+  // メッセージ編集・削除
+  // ========================================
+
+  /**
+   * メッセージ編集イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {EditMessagePayload} payload - メッセージ編集ペイロード
+   */
+  @SubscribeMessage('editMessage')
+  async handleEditMessage(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: EditMessagePayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { messageId, content } = payload;
+
+    try {
+      const result = await this.chatService.editMessage(messageId, user.userId, content);
+
+      // ルーム全体に配信
+      this.server.to(result.roomId.toString()).emit('messageUpdated', {
+        id: result.id,
+        roomId: result.roomId,
+        content: result.content,
+        isEdited: result.isEdited,
+        editedAt: result.editedAt,
+      } satisfies MessageUpdatedPayload);
+
+      this.logger.log(`Message ${messageId} edited by user ${user.userId}`);
+    } catch (error) {
+      this.logger.error(`Failed to edit message: ${error}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'メッセージの編集に失敗しました';
+      client.emit('error', {
+        message: errorMessage,
+        code: 'MESSAGE_EDIT_FAILED',
+      } satisfies ErrorPayload);
+    }
+  }
+
+  /**
+   * メッセージ削除イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {DeleteMessagePayload} payload - メッセージ削除ペイロード
+   */
+  @SubscribeMessage('deleteMessage')
+  async handleDeleteMessage(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: DeleteMessagePayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { messageId } = payload;
+
+    try {
+      const result = await this.chatService.deleteMessage(messageId, user.userId);
+
+      // ルーム全体に配信
+      this.server.to(result.roomId.toString()).emit('messageDeleted', {
+        id: result.id,
+        roomId: result.roomId,
+      } satisfies MessageDeletedPayload);
+
+      this.logger.log(`Message ${messageId} deleted by user ${user.userId}`);
+    } catch (error) {
+      this.logger.error(`Failed to delete message: ${error}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'メッセージの削除に失敗しました';
+      client.emit('error', {
+        message: errorMessage,
+        code: 'MESSAGE_DELETE_FAILED',
+      } satisfies ErrorPayload);
+    }
+  }
+
+  // ========================================
+  // リアクション
+  // ========================================
+
+  /**
+   * リアクション追加イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {AddReactionPayload} payload - リアクション追加ペイロード
+   */
+  @SubscribeMessage('addReaction')
+  async handleAddReaction(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: AddReactionPayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { messageId, emoji } = payload;
+
+    try {
+      const result = await this.chatService.addReaction(messageId, user.userId, emoji);
+
+      // ルーム全体に配信
+      this.server.to(result.roomId.toString()).emit('reactionAdded', {
+        messageId: result.messageId,
+        roomId: result.roomId,
+        emoji: result.emoji,
+        userId: result.userId,
+        username: result.username,
+      } satisfies ReactionAddedPayload);
+
+      this.logger.debug(`Reaction ${emoji} added to message ${messageId} by user ${user.userId}`);
+    } catch (error) {
+      this.logger.error(`Failed to add reaction: ${error}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'リアクションの追加に失敗しました';
+      client.emit('error', {
+        message: errorMessage,
+        code: 'REACTION_ADD_FAILED',
+      } satisfies ErrorPayload);
+    }
+  }
+
+  /**
+   * リアクション削除イベントハンドラ
+   * @param {AuthenticatedSocket} client - 認証済みクライアント
+   * @param {RemoveReactionPayload} payload - リアクション削除ペイロード
+   */
+  @SubscribeMessage('removeReaction')
+  async handleRemoveReaction(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() payload: RemoveReactionPayload,
+  ): Promise<void> {
+    const user = client.data.user;
+    if (!user) return;
+
+    const { messageId, emoji } = payload;
+
+    try {
+      const result = await this.chatService.removeReaction(messageId, user.userId, emoji);
+
+      // ルーム全体に配信
+      this.server.to(result.roomId.toString()).emit('reactionRemoved', {
+        messageId: result.messageId,
+        roomId: result.roomId,
+        emoji: result.emoji,
+        userId: result.userId,
+      } satisfies ReactionRemovedPayload);
+
+      this.logger.debug(
+        `Reaction ${emoji} removed from message ${messageId} by user ${user.userId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to remove reaction: ${error}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'リアクションの削除に失敗しました';
+      client.emit('error', {
+        message: errorMessage,
+        code: 'REACTION_REMOVE_FAILED',
       } satisfies ErrorPayload);
     }
   }
