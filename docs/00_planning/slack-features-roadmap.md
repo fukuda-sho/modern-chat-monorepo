@@ -90,7 +90,7 @@ Phase 5 (2-3週間): ユーザー体験の向上
 | メッセージ編集/削除 | 自分のメッセージの編集・ソフトデリート | Schema, Gateway, Frontend |
 | 絵文字リアクション | メッセージへの絵文字リアクション | Schema, Gateway, Frontend |
 
-**詳細仕様**: `docs/10_implementation/backend/11_message-actions.md`, `docs/10_implementation/frontend/12_message-actions.md`
+**詳細仕様**: `docs/10_implementation/backend/12_message-actions.md`, `docs/10_implementation/frontend/14_message-actions.md`
 
 ### 3.3 Phase 3: 未読管理と通知
 
@@ -101,7 +101,7 @@ Phase 5 (2-3週間): ユーザー体験の向上
 | 未読メッセージカウント | サイドバーに未読バッジ表示 | Schema, API, Frontend |
 | デスクトップ/サウンド通知 | ブラウザ通知・通知音 | Frontend のみ |
 
-**詳細仕様**: `docs/10_implementation/backend/12_unread-management.md`, `docs/10_implementation/frontend/13_notifications.md`
+**詳細仕様**: `docs/10_implementation/backend/13_unread-management.md`, `docs/10_implementation/frontend/15_notifications.md`
 
 ### 3.4 Phase 4: ダイレクトメッセージ
 
@@ -111,7 +111,7 @@ Phase 5 (2-3週間): ユーザー体験の向上
 |------|------|-------------|
 | DMサポート | 1対1のダイレクトメッセージ | Schema, New Module, Frontend |
 
-**詳細仕様**: `docs/10_implementation/backend/13_direct-messages.md`, `docs/10_implementation/frontend/14_direct-messages.md`
+**詳細仕様**: `docs/10_implementation/backend/14_direct-messages.md`, `docs/10_implementation/frontend/16_direct-messages.md`
 
 ### 3.5 Phase 5: ユーザー体験の向上
 
@@ -123,7 +123,7 @@ Phase 5 (2-3週間): ユーザー体験の向上
 | @メンション | @ユーザー名でのメンション | Schema, Gateway, Frontend |
 | メッセージ検索 | キーワードでのメッセージ検索 | New Module, Frontend |
 
-**詳細仕様**: `docs/10_implementation/backend/14_user-profile.md`, `docs/10_implementation/frontend/15_user-profile.md`
+**詳細仕様**: `docs/10_implementation/backend/15_user-profile.md`, `docs/10_implementation/frontend/17_user-profile.md`
 
 ---
 
@@ -308,21 +308,21 @@ frontend/features/
 
 **Backend**
 - `docs/10_implementation/backend/10_realtime-presence.md`
-- `docs/10_implementation/backend/11_message-actions.md`
-- `docs/10_implementation/backend/12_unread-management.md`
-- `docs/10_implementation/backend/13_direct-messages.md`
-- `docs/10_implementation/backend/14_user-profile.md`
-- `docs/10_implementation/backend/15_mentions.md`
-- `docs/10_implementation/backend/16_message-search.md`
+- `docs/10_implementation/backend/12_message-actions.md`
+- `docs/10_implementation/backend/13_unread-management.md`
+- `docs/10_implementation/backend/14_direct-messages.md`
+- `docs/10_implementation/backend/15_user-profile.md`
+- `docs/10_implementation/backend/16_mentions.md`
+- `docs/10_implementation/backend/17_message-search.md`
 
 **Frontend**
 - `docs/10_implementation/frontend/11_realtime-presence.md`
-- `docs/10_implementation/frontend/12_message-actions.md`
-- `docs/10_implementation/frontend/13_notifications.md`
-- `docs/10_implementation/frontend/14_direct-messages.md`
-- `docs/10_implementation/frontend/15_user-profile.md`
-- `docs/10_implementation/frontend/16_mentions.md`
-- `docs/10_implementation/frontend/17_message-search.md`
+- `docs/10_implementation/frontend/14_message-actions.md`
+- `docs/10_implementation/frontend/15_notifications.md`
+- `docs/10_implementation/frontend/16_direct-messages.md`
+- `docs/10_implementation/frontend/17_user-profile.md`
+- `docs/10_implementation/frontend/18_mentions.md`
+- `docs/10_implementation/frontend/19_message-search.md`
 
 ### 8.2 既存ドキュメント
 
